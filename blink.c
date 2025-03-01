@@ -16,9 +16,6 @@
 #endif
 #include "pico/time.h"
 
-#ifndef LED_DELAY_MS
-#define LED_DELAY_MS 900
-#endif
 
 #define PIN_SDA 4
 #define PIN_SCL 5
@@ -69,12 +66,30 @@ int main() {
     rc = pico_I2C_init();
     hard_assert(rc == PICO_OK);
 
-    //Initialize chosen serial port
+    //Initialize serial port(s) chosen in CMakeLists.txt
     stdio_init_all();
     //  see https://forums.raspberrypi.com/viewtopic.php?t=300136
     int i = 100;
 //   while (!tud_cdc_connected() && i--) { sleep_ms(100);  }
 //    printf("USB_connected or timed out\n");
+
+#define buflen 60
+char buffer_LED_ON[buflen];
+char buffer_LED_OFF[buflen];
+char buffer_I2C[buflen];                
+char buffer_Display[buflen];
+char buffer_RADIO_TX[buflen];
+char buffer_RADIO_RX[buflen];
+char buffer_UART[buflen];
+char buffer_UART2[buflen];
+char buffer_MPPT1[buflen];
+char buffer_MPPT2[buflen];
+char buffer_Power[buflen];
+char buffer_BURN_WIRE[buflen];
+char buffer_WDT[buflen];
+char buffer_COMMANDS[buflen];
+
+    //  Initialize the time variables for each test 
 
 //  LED ON
     absolute_time_t previous_time_LED_ON = get_absolute_time();     // ms
@@ -83,10 +98,10 @@ int main() {
 // LED OFF
     absolute_time_t previous_time_LED_OFF = get_absolute_time();     // ms
     uint32_t interval_LED_OFF = 500;
-
+ 
 //I2C Scan
     absolute_time_t previous_time_I2C = get_absolute_time();     // ms
-    uint32_t interval_I2C = 1000;
+    uint32_t interval_I2C = 1000;  
 
 //  Display
     absolute_time_t previous_time_Display = get_absolute_time();     // ms
@@ -108,13 +123,29 @@ int main() {
     absolute_time_t previous_time_UART2 = get_absolute_time();     // ms
     uint32_t interval_UART2 = 1000;
 
+// MPPT1
+    absolute_time_t previous_time_MPPT1 = get_absolute_time();     // ms
+    uint32_t interval_MPPT1 = 1000;
+
+// MPPT2
+    absolute_time_t previous_time_MPPT2 = get_absolute_time();     // ms
+    uint32_t interval_MPPT2 = 1000;
+
 // Power
     absolute_time_t previous_time_Power = get_absolute_time();     // ms
     uint32_t interval_Power = 1000;
 
+// BURN_WIRE
+    absolute_time_t previous_time_BURN_WIRE = get_absolute_time();     // ms
+    uint32_t interval_BURN_WIRE = 1000;
+
 // WDT
     absolute_time_t previous_time_WDT = get_absolute_time();     // ms      
     uint32_t interval_WDT = 1000;
+
+//  COMMANDS
+    absolute_time_t previous_time_COMMANDS = get_absolute_time();     // ms
+    uint32_t interval_COMMANDS = 1000;
 
 // Prevent loop from burning too much CPU   
     const int LOOP_THROTTLE_DELAY_MS = 100;
@@ -166,7 +197,22 @@ int main() {
         if (absolute_time_diff_us(previous_time_Display, get_absolute_time()) >= interval_Display) {
             // Save the last time you updated the Display
             previous_time_Display = get_absolute_time();    
-            printf("Display\n");
+            sprintf(buffer_Display, "Display\n");
+            
+            printf(buffer_BURN_WIRE);
+            printf(buffer_COMMANDS);
+            printf(buffer_Display);
+            printf(buffer_I2C);
+            printf(buffer_LED_OFF);
+            printf(buffer_LED_ON);
+            printf(buffer_MPPT1);
+            printf(buffer_MPPT2);
+            printf(buffer_Power);
+            printf(buffer_RADIO_RX);
+            printf(buffer_RADIO_TX);
+            printf(buffer_UART);
+            printf(buffer_UART2);
+            printf(buffer_WDT);
         }
 
         // Time to RADIO_TX?
@@ -197,6 +243,20 @@ int main() {
             printf("UART2\n");
         }
 
+        // Time to MPPT1?
+        if (absolute_time_diff_us(previous_time_MPPT1, get_absolute_time()) >= interval_MPPT1) {
+            // Save the last time you checked MPPT1
+            previous_time_MPPT1 = get_absolute_time();    
+            printf("MPPT1\n");
+        }
+
+        // Time to MPPT2?
+        if (absolute_time_diff_us(previous_time_MPPT2, get_absolute_time()) >= interval_MPPT2) {
+            // Save the last time you checked MPPT2
+            previous_time_MPPT2 = get_absolute_time();    
+            printf("MPPT2\n");
+        }
+
         // Time to Power?
         if (absolute_time_diff_us(previous_time_Power, get_absolute_time()) >= interval_Power) {
             // Save the last time you checked the power monitor
@@ -204,11 +264,25 @@ int main() {
             printf("Power\n");
         }
 
+        // time to BURN_WIRE ?
+        if (absolute_time_diff_us(previous_time_BURN_WIRE, get_absolute_time()) >= interval_BURN_WIRE) {
+            // Save the last time you checked the BURN_WIRE
+            previous_time_BURN_WIRE = get_absolute_time();    
+            printf("BURN_WIRE\n");
+        }
+
         // Time to WDT? 
         if (absolute_time_diff_us(previous_time_WDT, get_absolute_time()) >= interval_WDT) {
             // Save the last time you fed the Watchdog
             previous_time_WDT = get_absolute_time();    
             printf("WDT\n");
+        }
+
+        // Time to COMMANDS?
+        if (absolute_time_diff_us(previous_time_COMMANDS, get_absolute_time()) >= interval_COMMANDS) {
+            // Save the last time you checked for COMMANDS
+            previous_time_COMMANDS = get_absolute_time();    
+            printf("COMMANDS\n");
         }
 
         sleep_ms(LOOP_THROTTLE_DELAY_MS);
