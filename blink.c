@@ -74,78 +74,78 @@ int main() {
 //    printf("USB_connected or timed out\n");
 
 #define buflen 60
-char buffer_LED_ON[buflen];
-char buffer_LED_OFF[buflen];
-char buffer_I2C[buflen];                
-char buffer_Display[buflen];
-char buffer_RADIO_TX[buflen];
-char buffer_RADIO_RX[buflen];
-char buffer_UART[buflen];
-char buffer_UART2[buflen];
-char buffer_MPPT1[buflen];
-char buffer_MPPT2[buflen];
-char buffer_Power[buflen];
-char buffer_BURN_WIRE[buflen];
-char buffer_WDT[buflen];
-char buffer_COMMANDS[buflen];
 
-    //  Initialize the time variables for each test 
+//  Initialize the variables for each test 
 
 //  LED ON
     absolute_time_t previous_time_LED_ON = get_absolute_time();     // ms
     uint32_t interval_LED_ON = 1000;
+    char buffer_LED_ON[buflen] = 0;
 
 // LED OFF
     absolute_time_t previous_time_LED_OFF = get_absolute_time();     // ms
     uint32_t interval_LED_OFF = 500;
+    char buffer_LED_OFF[buflen] = 0;
  
 //I2C Scan
     absolute_time_t previous_time_I2C = get_absolute_time();     // ms
     uint32_t interval_I2C = 1000;  
+    char buffer_I2C[buflen] = 0;
 
 //  Display
     absolute_time_t previous_time_Display = get_absolute_time();     // ms
     uint32_t interval_Display = 1000;
+    char buffer_Display[buflen] = 0;
 
 //  RADIO_TX
     absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_TX = 1000;
+    char buffer_RADIO_TX[buflen] = 0;
 
 //  RADIO_RX
     absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_RX = 1000;
+    char buffer_RADIO_RX[buflen] = 0;
 
 //  UART
     absolute_time_t previous_time_UART = get_absolute_time();     // ms     
     uint32_t interval_UART = 1000;
+    char buffer_UART[buflen] = 0;
 
 // UART2
     absolute_time_t previous_time_UART2 = get_absolute_time();     // ms
     uint32_t interval_UART2 = 1000;
+    char buffer_UART2[buflen] = 0;
 
 // MPPT1
     absolute_time_t previous_time_MPPT1 = get_absolute_time();     // ms
     uint32_t interval_MPPT1 = 1000;
+    char buffer_MPPT1[buflen] = 0;
 
 // MPPT2
     absolute_time_t previous_time_MPPT2 = get_absolute_time();     // ms
     uint32_t interval_MPPT2 = 1000;
+    char buffer_MPPT2[buflen] = 0;
 
 // Power
     absolute_time_t previous_time_Power = get_absolute_time();     // ms
     uint32_t interval_Power = 1000;
+    char buffer_Power[buflen] = 0;
 
 // BURN_WIRE
     absolute_time_t previous_time_BURN_WIRE = get_absolute_time();     // ms
     uint32_t interval_BURN_WIRE = 1000;
+    char buffer_BURN_WIRE[buflen] = 0;
 
 // WDT
     absolute_time_t previous_time_WDT = get_absolute_time();     // ms      
     uint32_t interval_WDT = 1000;
+    char buffer_WDT[buflen] = 0;
 
 //  COMMANDS
     absolute_time_t previous_time_COMMANDS = get_absolute_time();     // ms
     uint32_t interval_COMMANDS = 1000;
+    char buffer_COMMANDS[buflen] = 0;
 
 // Prevent loop from burning too much CPU   
     const int LOOP_THROTTLE_DELAY_MS = 100;
@@ -219,70 +219,70 @@ char buffer_COMMANDS[buflen];
         if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
             // Save the last time you TX'd on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
-            printf("RADIO_TX\n");
+            sprintf(buffer_RADIO_TX, "RADIO_TX\n");
         }
 
         // Time to RADIO_RX?    
         if (absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
             // Save the last time you listened on the RADIO
             previous_time_RADIO_RX = get_absolute_time();    
-            printf("RADIO_RX\n");
+            sprintf(buffer_RADIO_RX, "RADIO_RX\n");
         }
 
         // Time to UART?
         if (absolute_time_diff_us(previous_time_UART, get_absolute_time()) >= interval_UART) {
             // Save the last time you blinked checked UART loopback
             previous_time_UART = get_absolute_time();    
-            printf("UART\n");
+            sprintf(buffer_UART, "UART\n");
         }   
 
         // Time to UART2?
         if (absolute_time_diff_us(previous_time_UART2, get_absolute_time()) >= interval_UART2) {
             // Save the last time you blinked checked UART2 loopback
             previous_time_UART2 = get_absolute_time();    
-            printf("UART2\n");
+            sprintf(buffer_UART2, "UART2\n");
         }
 
         // Time to MPPT1?
         if (absolute_time_diff_us(previous_time_MPPT1, get_absolute_time()) >= interval_MPPT1) {
             // Save the last time you checked MPPT1
             previous_time_MPPT1 = get_absolute_time();    
-            printf("MPPT1\n");
+            sprintf(buffer_MPPT1, "MPPT1\n");
         }
 
         // Time to MPPT2?
         if (absolute_time_diff_us(previous_time_MPPT2, get_absolute_time()) >= interval_MPPT2) {
             // Save the last time you checked MPPT2
             previous_time_MPPT2 = get_absolute_time();    
-            printf("MPPT2\n");
+            sprintf(buffer_MPPT2, "MPPT2\n");
         }
 
         // Time to Power?
         if (absolute_time_diff_us(previous_time_Power, get_absolute_time()) >= interval_Power) {
             // Save the last time you checked the power monitor
             previous_time_Power = get_absolute_time();    
-            printf("Power\n");
+            sprintf(buffer_Power, "Power\n");
         }
 
         // time to BURN_WIRE ?
         if (absolute_time_diff_us(previous_time_BURN_WIRE, get_absolute_time()) >= interval_BURN_WIRE) {
             // Save the last time you checked the BURN_WIRE
             previous_time_BURN_WIRE = get_absolute_time();    
-            printf("BURN_WIRE\n");
+            sprintf(buffer_BURN_WIRE, "BURN_WIRE\n");
         }
 
         // Time to WDT? 
         if (absolute_time_diff_us(previous_time_WDT, get_absolute_time()) >= interval_WDT) {
             // Save the last time you fed the Watchdog
             previous_time_WDT = get_absolute_time();    
-            printf("WDT\n");
+            sprintf(buffer_WDT, "WDT\n");
         }
 
         // Time to COMMANDS?
         if (absolute_time_diff_us(previous_time_COMMANDS, get_absolute_time()) >= interval_COMMANDS) {
             // Save the last time you checked for COMMANDS
             previous_time_COMMANDS = get_absolute_time();    
-            printf("COMMANDS\n");
+            sprintf(buffer_COMMANDS, "COMMANDS\n");
         }
 
         sleep_ms(LOOP_THROTTLE_DELAY_MS);
