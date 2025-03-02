@@ -1,13 +1,13 @@
 # ninja log v6
 3652	9446	1737266109582260463	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/hardware_timer/timer.c.o	4b1317211a7bb4f3
 14933	19399	1737266120862042080	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/hardware_i2c/i2c.c.o	862069dadc141a85
-1939	2835	1737266107882293370	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/common/pico_sync/critical_section.c.o	1e7931942be3ea23
 55	1443	1737266105986330071	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/common/hardware_claim/claim.c.o	8ee3d5e8d5384a5e
+1939	2835	1737266107882293370	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/common/pico_sync/critical_section.c.o	1e7931942be3ea23
 10491	12940	1737266116422128046	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/pico_divider/divider_compiler.c.o	db2768222db8cf64
+17179	19249	1737266123109998553	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/hardware_spi/spi.c.o	20bbecd1424d6915
+31	1225	1737266105962330535	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/pico_stdlib/stdlib.c.o	cb583091069f4e12
 9334	10315	1737266115266150427	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/hardware_xosc/xosc.c.o	13e13c4808e5c964
 2835	4106	1737266108766276259	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/common/pico_time/timeout_helper.c.o	8ec832909a3b5ac7
-31	1225	1737266105962330535	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/pico_stdlib/stdlib.c.o	cb583091069f4e12
-17179	19249	1737266123109998553	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/hardware_spi/spi.c.o	20bbecd1424d6915
 11383	11551	1737266117314110776	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/pico_float/float_conv_m33.S.o	ef91d2947fe518fe
 8713	9330	1737266114642162507	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/pico_bootrom/bootrom_lock.c.o	698de00b2ae52787
 11163	18545	1737266117094115035	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/pico_float/float_math.c.o	cfadc38402ec38b9
@@ -49,7 +49,7 @@
 14	119	1737315848503455363	/home/pi/Documents/pico/blink/build/pico-sdk/src/rp2350/boot_stage2/bs2_default_padded_checksummed.S	ff1c1f64d50e99d
 10629	10928	1737266116562125335	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/pico_double/double_aeabi_dcp.S.o	85a2f2129bec1263
 4615	8077	1737266110550241724	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/common/pico_util/queue.c.o	90f1c6ae78979f0a
-45	3717	7625539538499398	build.ninja	a3f886aee7d6ea79
+45	3717	7625895492947425	build.ninja	a3f886aee7d6ea79
 6890	7352	1737266112822197742	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/hardware_vreg/vreg.c.o	aed1b2f91c6305b
 8448	10570	1737266114378167618	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/pico_bootrom/bootrom.c.o	6bcb6732d5cb73a9
 6423	6889	1737266112354206802	CMakeFiles/blink.dir/home/pi/.pico-sdk/sdk/2.1.0/src/rp2_common/hardware_pll/pll.c.o	96e41a0372f5d6e5

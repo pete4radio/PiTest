@@ -20,6 +20,12 @@
 #define PIN_SDA 4
 #define PIN_SCL 5
 
+#define buflen 60
+char command_buffer[buflen] = 0;
+char response_buffer[buflen] = 0;
+int p = 0;  // pointer to the command buffer
+int burn_state = 0;             // not running the burn wire until triggered
+
 bool reserved_addr(uint8_t addr) {
   return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
 }
@@ -36,6 +42,13 @@ int pico_led_init(void) {
     // For Pico W devices we need to initialise the driver etc
     return cyw43_arch_init();
 #endif
+}
+
+// brurn wire GPIO initialization
+int pico_burn_wire_init(void) {
+    gpio_init(PIN_BURN_WIRE);
+    gpio_set_dir(PIN_BURN_WIRE, GPIO_OUT);
+    return PICO_OK;
 }
 
 int pico_I2C_init(void) {
@@ -73,7 +86,7 @@ int main() {
 //   while (!tud_cdc_connected() && i--) { sleep_ms(100);  }
 //    printf("USB_connected or timed out\n");
 
-#define buflen 60
+
 
 //  Initialize the variables for each test 
 
@@ -266,9 +279,10 @@ int main() {
 
         // time to BURN_WIRE ?
         if (absolute_time_diff_us(previous_time_BURN_WIRE, get_absolute_time()) >= interval_BURN_WIRE) {
-            // Save the last time you checked the BURN_WIRE
-            previous_time_BURN_WIRE = get_absolute_time();    
-            sprintf(buffer_BURN_WIRE, "BURN_WIRE\n");
+            burn_state = 0;
+            // set gpio to burn wire to 0
+            gpio_put(PIN_BURN_WIRE, 0);
+            sprintf(buffer_BURN_WIRE, "BURN_WIRE off\n");
         }
 
         // Time to WDT? 
@@ -281,7 +295,29 @@ int main() {
         // Time to COMMANDS?
         if (absolute_time_diff_us(previous_time_COMMANDS, get_absolute_time()) >= interval_COMMANDS) {
             // Save the last time you checked for COMMANDS
-            previous_time_COMMANDS = get_absolute_time();    
+            previous_time_COMMANDS = get_absolute_time();  
+        // any characters in the serial buffer?
+        int temp = getchar_timeout_us(0);
+            if (temp != PICO_ERROR_TIMEOUT) {
+                if (temp = "\n") {               // We've got a command
+                    command_buffer[p++] = 0;    // Null terminate the command buffer
+                    p = 0;                      // Reset the pointer    
+                Another command// Process the command
+                    if (strcmp(command_buffer, "BURN_ON") == 0) {
+                        burn_state = 1;
+                // set gpio to burn wire to 1
+                        gpio_put(PIN_BURN_WIRE, 1);
+                        previous_time_BURN_WIRE = get_absolute_time(); 
+                    }
+                    IF (strcmp(command_buffer, "another command\n") == 0) {
+                        burn_state = 0;
+                    }   
+                    
+                }
+                //  add character to command buffer
+                command_buffer[p++] = temp;  
+            }
+
             sprintf(buffer_COMMANDS, "COMMANDS\n");
         }
 
