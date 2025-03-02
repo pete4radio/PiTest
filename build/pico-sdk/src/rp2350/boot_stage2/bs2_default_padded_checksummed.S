@@ -1,4 +1,4 @@
-// Padded and checksummed version of: C:/Users/pete/Documents/pico/PiTest/build/pico-sdk/src/rp2350/boot_stage2/bs2_default.bin
+// Padded and checksummed version of: C:/Users/Pete/Documents/Pico/PiTest/build/pico-sdk/src/rp2350/boot_stage2/bs2_default.bin
 
 .cpu cortex-m0plus
 .thumb
