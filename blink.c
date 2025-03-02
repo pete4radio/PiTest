@@ -196,7 +196,6 @@ int main() {
                     printf("%02x ", addr);
                 }
 
-                
                 if (reserved_addr(addr))
                     ret = PICO_ERROR_GENERIC;
                 else
@@ -297,7 +296,7 @@ int main() {
         if (absolute_time_diff_us(previous_time_COMMANDS, get_absolute_time()) >= interval_COMMANDS) {
             // Save the last time you checked for COMMANDS
             previous_time_COMMANDS = get_absolute_time();  
-        // any characters in the serial buffer?
+        // is there a character in the serial input buffer?  get it without waiting
         int temp = getchar_timeout_us(0);
             if (temp != PICO_ERROR_TIMEOUT) {
                 if (temp == '\n') {               // We've got a command
@@ -315,7 +314,7 @@ int main() {
                     }   
                     
                 }
-                //  add character to command buffer
+            //  add character to command buffer
                 command_buffer[p++] = temp;  
             }
             sprintf(buffer_COMMANDS, "COMMANDS\n");

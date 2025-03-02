@@ -1,5 +1,3 @@
-# Generated Cmake Pico project file
-
 cmake_minimum_required(VERSION 3.13)
 
 set(CMAKE_C_STANDARD 11)
@@ -8,6 +6,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Initialise pico_sdk from installed location
 # (note this can come from environment, CMake cache etc)
+# set your OS environment variable PICO_SDK_PATH to .pico-sdk
+# EXAMPLE: export PICO_SDK_PATH=$HOME/.pico-sdk
+# In Windows, search for "environment" in the start menu and add a new environment variable
 
 # == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
