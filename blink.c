@@ -56,7 +56,7 @@ int pico_burn_wire_init(void) {
 }
 
 int pico_I2C_init(void) {
-    i2c_init(i2c0, 100 * 5000);
+    i2c_init(i2c0, 100 * 1000000);
     gpio_set_function(PIN_SDA, GPIO_FUNC_I2C);
     gpio_set_function(PIN_SCL, GPIO_FUNC_I2C);
     gpio_pull_up(PIN_SDA);
@@ -94,71 +94,71 @@ int main() {
 
 //  LED ON
     absolute_time_t previous_time_LED_ON = get_absolute_time();     // ms
-    uint32_t interval_LED_ON = 5000;
+    uint32_t interval_LED_ON = 1000000;
     char buffer_LED_ON[buflen] = "";
 
 // LED OFF
     absolute_time_t previous_time_LED_OFF = get_absolute_time();     // ms
-    uint32_t interval_LED_OFF = 500;
+    uint32_t interval_LED_OFF = 500000;
     char buffer_LED_OFF[buflen] = "";
  
 //I2C Scan
     absolute_time_t previous_time_I2C = get_absolute_time();     // ms
-    uint32_t interval_I2C = 5000;  
+    uint32_t interval_I2C = 1000000;  
     char buffer_I2C[buflen] = "";
 
 //  Display
     absolute_time_t previous_time_Display = get_absolute_time();     // ms
-    uint32_t interval_Display = 5000;
+    uint32_t interval_Display = 1000000;
     char buffer_Display[buflen] = "";
 
 //  RADIO_TX
     absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms        
-    uint32_t interval_RADIO_TX = 5000;
+    uint32_t interval_RADIO_TX = 1000000;
     char buffer_RADIO_TX[buflen] = "";
 //  RADIO_RX
     absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms        
-    uint32_t interval_RADIO_RX = 5000;
+    uint32_t interval_RADIO_RX = 1000000;
     char buffer_RADIO_RX[buflen] = "";
 
 //  UART
     absolute_time_t previous_time_UART = get_absolute_time();     // ms     
-    uint32_t interval_UART = 5000;
+    uint32_t interval_UART = 1000000;
     char buffer_UART[buflen] = "";
 
 // UART2
     absolute_time_t previous_time_UART2 = get_absolute_time();     // ms
-    uint32_t interval_UART2 = 5000;
+    uint32_t interval_UART2 = 1000000;
     char buffer_UART2[buflen] = "";
 
 // MPPT1
     absolute_time_t previous_time_MPPT1 = get_absolute_time();     // ms
-    uint32_t interval_MPPT1 = 5000;
+    uint32_t interval_MPPT1 = 1000000;
     char buffer_MPPT1[buflen] = "";
 
 // MPPT2
     absolute_time_t previous_time_MPPT2 = get_absolute_time();     // ms
-    uint32_t interval_MPPT2 = 5000;
+    uint32_t interval_MPPT2 = 1000000;
     char buffer_MPPT2[buflen] = "";
 
 // Power
     absolute_time_t previous_time_Power = get_absolute_time();     // ms
-    uint32_t interval_Power = 5000;
+    uint32_t interval_Power = 1000000;
     char buffer_Power[buflen] = "";
 
 // BURN_WIRE
     absolute_time_t previous_time_BURN_WIRE = get_absolute_time();     // ms
-    uint32_t interval_BURN_WIRE = 5000;
+    uint32_t interval_BURN_WIRE = 1000000;
     char buffer_BURN_WIRE[buflen] = "";
 
 // WDT
     absolute_time_t previous_time_WDT = get_absolute_time();     // ms      
-    uint32_t interval_WDT = 5000;
+    uint32_t interval_WDT = 1000000;
     char buffer_WDT[buflen] = "";
 
 //  COMMANDS
     absolute_time_t previous_time_COMMANDS = get_absolute_time();     // ms
-    uint32_t interval_COMMANDS = 5000;
+    uint32_t interval_COMMANDS = 1000000;
     char buffer_COMMANDS[buflen] = "";
 
 // Prevent loop from burning too much CPU   
@@ -167,7 +167,7 @@ int main() {
     while (true) {
 
     // Time to LED ON?
-        if (absolute_time_diff_ms(previous_time_LED_ON, get_absolute_time()) >= interval_LED_ON) {
+        if (absolute_time_diff_us(previous_time_LED_ON, get_absolute_time()) >= interval_LED_ON) {
             // Save the last time you blinked the LED
             previous_time_LED_ON = get_absolute_time();    
             pico_set_led(true);
@@ -175,14 +175,14 @@ int main() {
         }
     
     // Time to LED OFF?
-        if (absolute_time_diff_ms(previous_time_LED_OFF, get_absolute_time()) >= interval_LED_OFF) {
+        if (absolute_time_diff_us(previous_time_LED_OFF, get_absolute_time()) >= interval_LED_OFF) {
             // Save the last time you blinked the LED
             previous_time_LED_OFF = get_absolute_time();    
             pico_set_led(false);
         }
 
     // Time to I2C Scan?    
-        if (absolute_time_diff_ms(previous_time_I2C, get_absolute_time()) >= interval_I2C) {
+        if (absolute_time_diff_us(previous_time_I2C, get_absolute_time()) >= interval_I2C) {
             previous_time_I2C = get_absolute_time();    
             printf("I2C Bus Scan\n");
             printf("   0  1  2  3 4 5 6 7 8 9 A B C D E F\n");
@@ -199,7 +199,7 @@ int main() {
                 if (reserved_addr(addr))
                     ret = PICO_ERROR_GENERIC;
                 else
-                    ret = i2c_read_blocking_until(i2c0, addr, &rxdata, 1, false, make_timeout_time_ms(100));
+                    ret = i2c_read_blocking_until(i2c0, addr, &rxdata, 1, false, make_timeout_time_ms(10));
 
                 printf(ret < 0 ? "." : "@");
                 printf(addr % 16 == 15 ? "\n" : "  ");
@@ -207,7 +207,7 @@ int main() {
         }   
 
         // Time to Display? 
-        if (absolute_time_diff_ms(previous_time_Display, get_absolute_time()) >= interval_Display) {
+        if (absolute_time_diff_us(previous_time_Display, get_absolute_time()) >= interval_Display) {
             // Save the last time you updated the Display
             previous_time_Display = get_absolute_time();    
             sprintf(buffer_Display, "Display\n");
@@ -229,56 +229,56 @@ int main() {
         }
 
         // Time to RADIO_TX?
-        if (absolute_time_diff_ms(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
+        if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
             // Save the last time you TX'd on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
             sprintf(buffer_RADIO_TX, "RADIO_TX\n");
         }
 
         // Time to RADIO_RX?    
-        if (absolute_time_diff_ms(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
+        if (absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
             // Save the last time you listened on the RADIO
             previous_time_RADIO_RX = get_absolute_time();    
             sprintf(buffer_RADIO_RX, "RADIO_RX\n");
         }
 
         // Time to UART?
-        if (absolute_time_diff_ms(previous_time_UART, get_absolute_time()) >= interval_UART) {
+        if (absolute_time_diff_us(previous_time_UART, get_absolute_time()) >= interval_UART) {
             // Save the last time you blinked checked UART loopback
             previous_time_UART = get_absolute_time();    
             sprintf(buffer_UART, "UART\n");
         }   
 
         // Time to UART2?
-        if (absolute_time_diff_ms(previous_time_UART2, get_absolute_time()) >= interval_UART2) {
+        if (absolute_time_diff_us(previous_time_UART2, get_absolute_time()) >= interval_UART2) {
             // Save the last time you blinked checked UART2 loopback
             previous_time_UART2 = get_absolute_time();    
             sprintf(buffer_UART2, "UART2\n");
         }
 
         // Time to MPPT1?
-        if (absolute_time_diff_ms(previous_time_MPPT1, get_absolute_time()) >= interval_MPPT1) {
+        if (absolute_time_diff_us(previous_time_MPPT1, get_absolute_time()) >= interval_MPPT1) {
             // Save the last time you checked MPPT1
             previous_time_MPPT1 = get_absolute_time();    
             sprintf(buffer_MPPT1, "MPPT1\n");
         }
 
         // Time to MPPT2?
-        if (absolute_time_diff_ms(previous_time_MPPT2, get_absolute_time()) >= interval_MPPT2) {
+        if (absolute_time_diff_us(previous_time_MPPT2, get_absolute_time()) >= interval_MPPT2) {
             // Save the last time you checked MPPT2
             previous_time_MPPT2 = get_absolute_time();    
             sprintf(buffer_MPPT2, "MPPT2\n");
         }
 
         // Time to Power?
-        if (absolute_time_diff_ms(previous_time_Power, get_absolute_time()) >= interval_Power) {
+        if (absolute_time_diff_us(previous_time_Power, get_absolute_time()) >= interval_Power) {
             // Save the last time you checked the power monitor
             previous_time_Power = get_absolute_time();    
             sprintf(buffer_Power, "Power\n");
         }
 
         // time to BURN_WIRE ?
-        if (absolute_time_diff_ms(previous_time_BURN_WIRE, get_absolute_time()) >= interval_BURN_WIRE) {
+        if (absolute_time_diff_us(previous_time_BURN_WIRE, get_absolute_time()) >= interval_BURN_WIRE) {
             burn_state = 0;
             // set gpio to burn wire to 0
             gpio_put(PIN_BURN_WIRE, 0);
@@ -286,39 +286,37 @@ int main() {
         }
 
         // Time to WDT? 
-        if (absolute_time_diff_ms(previous_time_WDT, get_absolute_time()) >= interval_WDT) {
+        if (absolute_time_diff_us(previous_time_WDT, get_absolute_time()) >= interval_WDT) {
             // Save the last time you fed the Watchdog
             previous_time_WDT = get_absolute_time();    
             sprintf(buffer_WDT, "WDT\n");
         }
 
         // Time to COMMANDS?
-        if (absolute_time_diff_ms(previous_time_COMMANDS, get_absolute_time()) >= interval_COMMANDS) {
+        if (absolute_time_diff_us(previous_time_COMMANDS, get_absolute_time()) >= interval_COMMANDS) {
             // Save the last time you checked for COMMANDS
             previous_time_COMMANDS = get_absolute_time();  
         // is there a character in the serial input buffer?  get it without waiting
         int temp = getchar_timeout_us(0);
-            if (temp != PICO_ERROR_TIMEOUT) {
-                if (temp == '\n') {               // We've got a command
-                    command_buffer[p++] = '\0';    // Null terminate the command buffer
-                    p = 0;                      // Reset the pointer    
-                // Process the command
-                    if (strcmp(command_buffer, "BURN_ON") == 0) {
-                        burn_state = 1;
-                        sprintf(response_buffer, "BURN_WIRE on\n");
-                // set gpio to burn wire to 1
-                        gpio_put(PIN_BURN_WIRE, 1);
-                        previous_time_BURN_WIRE = get_absolute_time(); 
-                    }
-                    if (strcmp(command_buffer, "another command\n") == 0) {
-                        burn_state = 0;
-                    }   
-                    
+            if (p > 0 && temp == PICO_ERROR_TIMEOUT) {  // We've got a command, which come in bursts
+                command_buffer[p++] = '\0';    // Null terminate the command buffer
+                p = 0;                      // Reset the pointer    
+            // Process the command
+                if (strcmp(command_buffer, "BURN_ON") == 0) {
+                    burn_state = 1;
+                    sprintf(response_buffer, "BURN_WIRE was turned on\n");
+            // set gpio to burn wire to 1
+                    gpio_put(PIN_BURN_WIRE, 1);
+                    previous_time_BURN_WIRE = get_absolute_time(); 
                 }
-            //  add character to command buffer
-                command_buffer[p++] = temp;  
+                if (strcmp(command_buffer, "another command\n") == 0) {
+                    burn_state = 0;
+                }   
             }
-            sprintf(buffer_COMMANDS, "COMMANDS last command:%s\n", response_buffer);
+            else if (temp != PICO_ERROR_TIMEOUT)
+            //  add character to command buffer
+                command_buffer[p++] = temp;   
+            sprintf(buffer_COMMANDS, "COMMANDS last command:%s; response:%s\n", command_buffer, response_buffer);
         }
 
         sleep_ms(LOOP_THROTTLE_DELAY_MS);
