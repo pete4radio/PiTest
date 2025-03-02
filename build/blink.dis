@@ -1,5 +1,5 @@
 
-C:/Users/Pete/Documents/Pico/PiTest/build/blink.elf:     file format elf32-littlearm
+/Users/petemahowald/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
 
 Sections:
 Idx Name          Size      VMA       LMA       File off  Algn
@@ -47,16 +47,16 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  21 .debug_rnglists 00003cc7  00000000  00000000  000503b8  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .debug_line   0001b944  00000000  00000000  0005407f  2**0
+ 22 .debug_line   0001c12a  00000000  00000000  0005407f  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 23 .debug_str    0000834c  00000000  00000000  0006f9c3  2**0
+ 23 .debug_str    00008424  00000000  00000000  000701a9  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 24 .debug_frame  000029e0  00000000  00000000  00077d10  2**2
+ 24 .debug_frame  000029e0  00000000  00000000  000785d0  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 25 .debug_line_str 00000290  00000000  00000000  0007a6f0  2**0
+ 25 .debug_line_str 000002b4  00000000  00000000  0007afb0  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
-C:/Users/Pete/Documents/Pico/PiTest/build/blink.elf:     file format elf32-littlearm
+/Users/petemahowald/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
 
 
 Disassembly of section .text:
@@ -756,7 +756,7 @@ Disassembly of section .text:
 10000750:	f242 7310 	movw	r3, #10000	@ 0x2710
 10000754:	18c0      	adds	r0, r0, r3
 10000756:	f141 0300 	adc.w	r3, r1, #0
-1000075a:	f04f 31ff 	mov.w	r1, #4294967295
+1000075a:	f04f 31ff 	mov.w	r1, #4294967295	@ 0xffffffff
 1000075e:	f06f 4200 	mvn.w	r2, #2147483648	@ 0x80000000
 10000762:	4281      	cmp	r1, r0
 10000764:	eb72 0c03 	sbcs.w	ip, r2, r3
@@ -797,7 +797,7 @@ Disassembly of section .text:
 100007c0:	f003 f844 	bl	1000384c <__wrap_printf>
 100007c4:	f000 fee2 	bl	1000158c <time_us_64>
 100007c8:	f242 7310 	movw	r3, #10000	@ 0x2710
-100007cc:	f04f 32ff 	mov.w	r2, #4294967295
+100007cc:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 100007d0:	18c0      	adds	r0, r0, r3
 100007d2:	f06f 4300 	mvn.w	r3, #2147483648	@ 0x80000000
 100007d6:	f141 0100 	adc.w	r1, r1, #0
@@ -1454,9 +1454,9 @@ Disassembly of section .text:
 10000ec6:	eb01 0141 	add.w	r1, r1, r1, lsl #1
 10000eca:	eb03 03c1 	add.w	r3, r3, r1, lsl #3
 10000ece:	e9d3 4702 	ldrd	r4, r7, [r3, #8]
-10000ed2:	f1b7 3fff 	cmp.w	r7, #4294967295
+10000ed2:	f1b7 3fff 	cmp.w	r7, #4294967295	@ 0xffffffff
 10000ed6:	bf08      	it	eq
-10000ed8:	f1b4 3fff 	cmpeq.w	r4, #4294967295
+10000ed8:	f1b4 3fff 	cmpeq.w	r4, #4294967295	@ 0xffffffff
 10000edc:	d009      	beq.n	10000ef2 <alarm_pool_irq_handler+0x92>
 10000ede:	9b01      	ldr	r3, [sp, #4]
 10000ee0:	eb05 0183 	add.w	r1, r5, r3, lsl #2
@@ -1823,7 +1823,7 @@ Disassembly of section .text:
 100012f8:	690a      	ldr	r2, [r1, #16]
 100012fa:	e8c2 3f8f 	stlb	r3, [r2]
 100012fe:	f387 8810 	msr	PRIMASK, r7
-10001302:	f04f 30ff 	mov.w	r0, #4294967295
+10001302:	f04f 30ff 	mov.w	r0, #4294967295	@ 0xffffffff
 10001306:	bdf0      	pop	{r4, r5, r6, r7, pc}
 
 10001308 <alarm_pool_cancel_alarm>:
@@ -1880,7 +1880,7 @@ Disassembly of section .text:
 10001388 <sleep_until>:
 10001388:	e92d 41f0 	stmdb	sp!, {r4, r5, r6, r7, r8, lr}
 1000138c:	1f86      	subs	r6, r0, #6
-1000138e:	f141 35ff 	adc.w	r5, r1, #4294967295
+1000138e:	f141 35ff 	adc.w	r5, r1, #4294967295	@ 0xffffffff
 10001392:	42b0      	cmp	r0, r6
 10001394:	eb71 0305 	sbcs.w	r3, r1, r5
 10001398:	bf38      	it	cc
@@ -1953,7 +1953,7 @@ Disassembly of section .text:
 10001446:	4604      	mov	r4, r0
 10001448:	f000 f8a0 	bl	1000158c <time_us_64>
 1000144c:	f44f 737a 	mov.w	r3, #1000	@ 0x3e8
-10001450:	f04f 3cff 	mov.w	ip, #4294967295
+10001450:	f04f 3cff 	mov.w	ip, #4294967295	@ 0xffffffff
 10001454:	f06f 4200 	mvn.w	r2, #2147483648	@ 0x80000000
 10001458:	fbe4 0103 	umlal	r0, r1, r4, r3
 1000145c:	e8bd 4010 	ldmia.w	sp!, {r4, lr}
@@ -2130,7 +2130,7 @@ Disassembly of section .text:
 100015c6:	bf08      	it	eq
 100015c8:	460b      	moveq	r3, r1
 100015ca:	d008      	beq.n	100015de <busy_wait_us+0x3e>
-100015cc:	f04f 31ff 	mov.w	r1, #4294967295
+100015cc:	f04f 31ff 	mov.w	r1, #4294967295	@ 0xffffffff
 100015d0:	460b      	mov	r3, r1
 100015d2:	480b      	ldr	r0, [pc, #44]	@ (10001600 <busy_wait_us+0x60>)
 100015d4:	6a42      	ldr	r2, [r0, #36]	@ 0x24
@@ -3006,7 +3006,7 @@ Disassembly of section .text:
 10001e70:	2c20      	cmp	r4, #32
 10001e72:	f007 0b01 	and.w	fp, r7, #1
 10001e76:	f000 8112 	beq.w	1000209e <_ntoa_format+0x252>
-10001e7a:	f104 3cff 	add.w	ip, r4, #4294967295
+10001e7a:	f104 3cff 	add.w	ip, r4, #4294967295	@ 0xffffffff
 10001e7e:	f04f 0a30 	mov.w	sl, #48	@ 0x30
 10001e82:	44f4      	add	ip, lr
 10001e84:	e001      	b.n	10001e8a <_ntoa_format+0x3e>
@@ -3022,7 +3022,7 @@ Disassembly of section .text:
 10001e9c:	d20e      	bcs.n	10001ebc <_ntoa_format+0x70>
 10001e9e:	2c20      	cmp	r4, #32
 10001ea0:	d074      	beq.n	10001f8c <_ntoa_format+0x140>
-10001ea2:	f104 3cff 	add.w	ip, r4, #4294967295
+10001ea2:	f104 3cff 	add.w	ip, r4, #4294967295	@ 0xffffffff
 10001ea6:	f04f 0a30 	mov.w	sl, #48	@ 0x30
 10001eaa:	44f4      	add	ip, lr
 10001eac:	e001      	b.n	10001eb2 <_ntoa_format+0x66>
@@ -3269,14 +3269,14 @@ Disassembly of section .text:
 10002136:	f040 80d8 	bne.w	100022ea <_etoa+0x1e2>
 1000213a:	4638      	mov	r0, r7
 1000213c:	4641      	mov	r1, r8
-1000213e:	f04f 32ff 	mov.w	r2, #4294967295
+1000213e:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 10002142:	4b75      	ldr	r3, [pc, #468]	@ (10002318 <_etoa+0x210>)
 10002144:	f7ff fe1e 	bl	10001d84 <__wrap___aeabi_dcmpgt>
 10002148:	2800      	cmp	r0, #0
 1000214a:	f040 80ce 	bne.w	100022ea <_etoa+0x1e2>
 1000214e:	4638      	mov	r0, r7
 10002150:	4641      	mov	r1, r8
-10002152:	f04f 32ff 	mov.w	r2, #4294967295
+10002152:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 10002156:	f46f 1380 	mvn.w	r3, #1048576	@ 0x100000
 1000215a:	f7ff fdeb 	bl	10001d34 <__wrap___aeabi_dcmplt>
 1000215e:	2800      	cmp	r0, #0
@@ -3313,7 +3313,7 @@ Disassembly of section .text:
 100021bc:	f04f 0a00 	movle.w	sl, #0
 100021c0:	464f      	mov	r7, r9
 100021c2:	bfc8      	it	gt
-100021c4:	f10a 3aff 	addgt.w	sl, sl, #4294967295
+100021c4:	f10a 3aff 	addgt.w	sl, sl, #4294967295	@ 0xffffffff
 100021c8:	f444 6480 	orr.w	r4, r4, #1024	@ 0x400
 100021cc:	454d      	cmp	r5, r9
 100021ce:	bf94      	ite	ls
@@ -3362,7 +3362,7 @@ Disassembly of section .text:
 10002252:	2045      	movne	r0, #69	@ 0x45
 10002254:	4651      	mov	r1, sl
 10002256:	47d8      	blx	fp
-10002258:	f109 30ff 	add.w	r0, r9, #4294967295
+10002258:	f109 30ff 	add.w	r0, r9, #4294967295	@ 0xffffffff
 1000225c:	ea87 7ce7 	eor.w	ip, r7, r7, asr #31
 10002260:	f10d 0958 	add.w	r9, sp, #88	@ 0x58
 10002264:	2200      	movs	r2, #0
@@ -3577,7 +3577,7 @@ Disassembly of section .text:
 100024c0:	9b13      	ldr	r3, [sp, #76]	@ 0x4c
 100024c2:	2b00      	cmp	r3, #0
 100024c4:	f43f ae82 	beq.w	100021cc <_etoa+0xc4>
-100024c8:	f10a 3aff 	add.w	sl, sl, #4294967295
+100024c8:	f10a 3aff 	add.w	sl, sl, #4294967295	@ 0xffffffff
 100024cc:	e67e      	b.n	100021cc <_etoa+0xc4>
 100024ce:	2200      	movs	r2, #0
 100024d0:	4b1e      	ldr	r3, [pc, #120]	@ (1000254c <_etoa+0x444>)
@@ -3642,14 +3642,14 @@ Disassembly of section .text:
 10002590:	f040 81c5 	bne.w	1000291e <_ftoa+0x3b6>
 10002594:	4640      	mov	r0, r8
 10002596:	4649      	mov	r1, r9
-10002598:	f04f 32ff 	mov.w	r2, #4294967295
+10002598:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 1000259c:	f46f 1380 	mvn.w	r3, #1048576	@ 0x100000
 100025a0:	f7ff fbc8 	bl	10001d34 <__wrap___aeabi_dcmplt>
 100025a4:	2800      	cmp	r0, #0
 100025a6:	f040 811d 	bne.w	100027e4 <_ftoa+0x27c>
 100025aa:	4640      	mov	r0, r8
 100025ac:	4649      	mov	r1, r9
-100025ae:	f04f 32ff 	mov.w	r2, #4294967295
+100025ae:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 100025b2:	4bc1      	ldr	r3, [pc, #772]	@ (100028b8 <_ftoa+0x350>)
 100025b4:	f7ff fbe6 	bl	10001d84 <__wrap___aeabi_dcmpgt>
 100025b8:	2800      	cmp	r0, #0
@@ -3878,7 +3878,7 @@ Disassembly of section .text:
 1000282c:	461d      	mov	r5, r3
 1000282e:	2d20      	cmp	r5, #32
 10002830:	f105 0301 	add.w	r3, r5, #1
-10002834:	f106 36ff 	add.w	r6, r6, #4294967295
+10002834:	f106 36ff 	add.w	r6, r6, #4294967295	@ 0xffffffff
 10002838:	d1eb      	bne.n	10002812 <_ftoa+0x2aa>
 1000283a:	2520      	movs	r5, #32
 1000283c:	e74b      	b.n	100026d6 <_ftoa+0x16e>
@@ -3959,7 +3959,7 @@ Disassembly of section .text:
 1000290a:	07fa      	lsls	r2, r7, #31
 1000290c:	f57f aec7 	bpl.w	1000269e <_ftoa+0x136>
 10002910:	e7a0      	b.n	10002854 <_ftoa+0x2ec>
-10002912:	f10b 3bff 	add.w	fp, fp, #4294967295
+10002912:	f10b 3bff 	add.w	fp, fp, #4294967295	@ 0xffffffff
 10002916:	45ab      	cmp	fp, r5
 10002918:	f63f af09 	bhi.w	1000272e <_ftoa+0x1c6>
 1000291c:	e7a0      	b.n	10002860 <_ftoa+0x2f8>
@@ -4147,7 +4147,7 @@ Disassembly of section .text:
 10002b42:	9b09      	ldr	r3, [sp, #36]	@ 0x24
 10002b44:	4599      	cmp	r9, r3
 10002b46:	d301      	bcc.n	10002b4c <_vsnprintf+0x1f0>
-10002b48:	f103 39ff 	add.w	r9, r3, #4294967295
+10002b48:	f103 39ff 	add.w	r9, r3, #4294967295	@ 0xffffffff
 10002b4c:	464a      	mov	r2, r9
 10002b4e:	2000      	movs	r0, #0
 10002b50:	9b09      	ldr	r3, [sp, #36]	@ 0x24
@@ -4387,7 +4387,7 @@ Disassembly of section .text:
 10002dcc:	e60f      	b.n	100029ee <_vsnprintf+0x92>
 10002dce:	2a00      	cmp	r2, #0
 10002dd0:	f43f af2c 	beq.w	10002c2c <_vsnprintf+0x2d0>
-10002dd4:	f107 3cff 	add.w	ip, r7, #4294967295
+10002dd4:	f107 3cff 	add.w	ip, r7, #4294967295	@ 0xffffffff
 10002dd8:	e71b      	b.n	10002c12 <_vsnprintf+0x2b6>
 10002dda:	f023 0110 	bic.w	r1, r3, #16
 10002dde:	f413 6280 	ands.w	r2, r3, #1024	@ 0x400
@@ -4510,7 +4510,7 @@ Disassembly of section .text:
 10002f1c:	d945      	bls.n	10002faa <_vsnprintf+0x64e>
 10002f1e:	e9dd 5409 	ldrd	r5, r4, [sp, #36]	@ 0x24
 10002f22:	464e      	mov	r6, r9
-10002f24:	f109 38ff 	add.w	r8, r9, #4294967295
+10002f24:	f109 38ff 	add.w	r8, r9, #4294967295	@ 0xffffffff
 10002f28:	4498      	add	r8, r3
 10002f2a:	4632      	mov	r2, r6
 10002f2c:	462b      	mov	r3, r5
@@ -4902,7 +4902,7 @@ Disassembly of section .text:
 1000334a:	ac07      	add	r4, sp, #28
 1000334c:	f854 3b04 	ldr.w	r3, [r4], #4
 10003350:	4601      	mov	r1, r0
-10003352:	f04f 32ff 	mov.w	r2, #4294967295
+10003352:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 10003356:	9400      	str	r4, [sp, #0]
 10003358:	4804      	ldr	r0, [pc, #16]	@ (1000336c <__wrap_sprintf+0x28>)
 1000335a:	9403      	str	r4, [sp, #12]
@@ -4921,7 +4921,7 @@ Disassembly of section .text:
 10003376:	4605      	mov	r5, r0
 10003378:	460c      	mov	r4, r1
 1000337a:	b084      	sub	sp, #16
-1000337c:	f04f 32ff 	mov.w	r2, #4294967295
+1000337c:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 10003380:	4663      	mov	r3, ip
 10003382:	a902      	add	r1, sp, #8
 10003384:	9600      	str	r6, [sp, #0]
@@ -4940,7 +4940,7 @@ Disassembly of section .text:
 100033a0:	b14c      	cbz	r4, 100033b6 <weak_raw_vprintf+0x1e>
 100033a2:	4603      	mov	r3, r0
 100033a4:	9100      	str	r1, [sp, #0]
-100033a6:	f04f 32ff 	mov.w	r2, #4294967295
+100033a6:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 100033aa:	a903      	add	r1, sp, #12
 100033ac:	4805      	ldr	r0, [pc, #20]	@ (100033c4 <weak_raw_vprintf+0x2c>)
 100033ae:	47a0      	blx	r4
@@ -5104,7 +5104,7 @@ Disassembly of section .text:
 10003516:	4699      	mov	r9, r3
 10003518:	4607      	mov	r7, r0
 1000351a:	f7fe f837 	bl	1000158c <time_us_64>
-1000351e:	f04f 36ff 	mov.w	r6, #4294967295
+1000351e:	f04f 36ff 	mov.w	r6, #4294967295	@ 0xffffffff
 10003522:	f06f 4400 	mvn.w	r4, #2147483648	@ 0x80000000
 10003526:	4a2f      	ldr	r2, [pc, #188]	@ (100035e4 <stdio_put_string+0xd8>)
 10003528:	1882      	adds	r2, r0, r2
@@ -5227,7 +5227,7 @@ Disassembly of section .text:
 1000363c:	b082      	sub	sp, #8
 1000363e:	4606      	mov	r6, r0
 10003640:	f7fd ffa4 	bl	1000158c <time_us_64>
-10003644:	f04f 32ff 	mov.w	r2, #4294967295
+10003644:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
 10003648:	f06f 4300 	mvn.w	r3, #2147483648	@ 0x80000000
 1000364c:	1836      	adds	r6, r6, r0
 1000364e:	f141 0700 	adc.w	r7, r1, #0
@@ -5284,7 +5284,7 @@ Disassembly of section .text:
 100036c8:	4606      	mov	r6, r0
 100036ca:	f88d 0007 	strb.w	r0, [sp, #7]
 100036ce:	f7fd ff5d 	bl	1000158c <time_us_64>
-100036d2:	f04f 35ff 	mov.w	r5, #4294967295
+100036d2:	f04f 35ff 	mov.w	r5, #4294967295	@ 0xffffffff
 100036d6:	f06f 4400 	mvn.w	r4, #2147483648	@ 0x80000000
 100036da:	4a17      	ldr	r2, [pc, #92]	@ (10003738 <__wrap_putchar+0x74>)
 100036dc:	1882      	adds	r2, r0, r2
@@ -5367,7 +5367,7 @@ Disassembly of section .text:
 1000378a:	4604      	mov	r4, r0
 1000378c:	460d      	mov	r5, r1
 1000378e:	f7fd fefd 	bl	1000158c <time_us_64>
-10003792:	f04f 37ff 	mov.w	r7, #4294967295
+10003792:	f04f 37ff 	mov.w	r7, #4294967295	@ 0xffffffff
 10003796:	f06f 4600 	mvn.w	r6, #2147483648	@ 0x80000000
 1000379a:	4a27      	ldr	r2, [pc, #156]	@ (10003838 <__wrap_vprintf+0xb4>)
 1000379c:	1882      	adds	r2, r0, r2
@@ -5678,7 +5678,7 @@ Disassembly of section .text:
 10003a78:	f89d b028 	ldrb.w	fp, [sp, #40]	@ 0x28
 10003a7c:	f8c2 c06c 	str.w	ip, [r2, #108]	@ 0x6c
 10003a80:	dd21      	ble.n	10003ac6 <i2c_read_blocking_internal+0x6a>
-10003a82:	f108 3aff 	add.w	sl, r8, #4294967295
+10003a82:	f108 3aff 	add.w	sl, r8, #4294967295	@ 0xffffffff
 10003a86:	b114      	cbz	r4, 10003a8e <i2c_read_blocking_internal+0x32>
 10003a88:	2101      	movs	r1, #1
 10003a8a:	4630      	mov	r0, r6
@@ -6432,8 +6432,8 @@ Disassembly of section .data:
 2000022e:	bf08      	it	eq
 20000230:	2800      	cmpeq	r0, #0
 20000232:	bf1c      	itt	ne
-20000234:	f04f 31ff 	movne.w	r1, #4294967295
-20000238:	f04f 30ff 	movne.w	r0, #4294967295
+20000234:	f04f 31ff 	movne.w	r1, #4294967295	@ 0xffffffff
+20000238:	f04f 30ff 	movne.w	r0, #4294967295	@ 0xffffffff
 2000023c:	f000 b98c 	b.w	20000558 <__aeabi_idiv0>
 20000240:	f1ad 0c08 	sub.w	ip, sp, #8
 20000244:	e96d ce04 	strd	ip, lr, [sp, #-16]!
@@ -6472,7 +6472,7 @@ Disassembly of section .data:
 200002a0:	4290      	cmp	r0, r2
 200002a2:	d908      	bls.n	200002b6 <__udivmoddi4+0x5e>
 200002a4:	eb1c 0202 	adds.w	r2, ip, r2
-200002a8:	f101 37ff 	add.w	r7, r1, #4294967295
+200002a8:	f101 37ff 	add.w	r7, r1, #4294967295	@ 0xffffffff
 200002ac:	d202      	bcs.n	200002b4 <__udivmoddi4+0x5c>
 200002ae:	4290      	cmp	r0, r2
 200002b0:	f200 813c 	bhi.w	2000052c <__udivmoddi4+0x2d4>
@@ -6486,7 +6486,7 @@ Disassembly of section .data:
 200002ca:	45a6      	cmp	lr, r4
 200002cc:	d908      	bls.n	200002e0 <__udivmoddi4+0x88>
 200002ce:	eb1c 0404 	adds.w	r4, ip, r4
-200002d2:	f100 32ff 	add.w	r2, r0, #4294967295
+200002d2:	f100 32ff 	add.w	r2, r0, #4294967295	@ 0xffffffff
 200002d6:	d202      	bcs.n	200002de <__udivmoddi4+0x86>
 200002d8:	45a6      	cmp	lr, r4
 200002da:	f200 812a 	bhi.w	20000532 <__udivmoddi4+0x2da>
@@ -6532,7 +6532,7 @@ Disassembly of section .data:
 2000034c:	4290      	cmp	r0, r2
 2000034e:	d90f      	bls.n	20000370 <__udivmoddi4+0x118>
 20000350:	eb1c 0202 	adds.w	r2, ip, r2
-20000354:	f106 38ff 	add.w	r8, r6, #4294967295
+20000354:	f106 38ff 	add.w	r8, r6, #4294967295	@ 0xffffffff
 20000358:	bf2c      	ite	cs
 2000035a:	f04f 0901 	movcs.w	r9, #1
 2000035e:	f04f 0900 	movcc.w	r9, #0
@@ -6550,7 +6550,7 @@ Disassembly of section .data:
 20000384:	42a7      	cmp	r7, r4
 20000386:	d90f      	bls.n	200003a8 <__udivmoddi4+0x150>
 20000388:	eb1c 0404 	adds.w	r4, ip, r4
-2000038c:	f100 32ff 	add.w	r2, r0, #4294967295
+2000038c:	f100 32ff 	add.w	r2, r0, #4294967295	@ 0xffffffff
 20000390:	bf2c      	ite	cs
 20000392:	f04f 0e01 	movcs.w	lr, #1
 20000396:	f04f 0e00 	movcc.w	lr, #0
@@ -6582,7 +6582,7 @@ Disassembly of section .data:
 200003ec:	45b1      	cmp	r9, r6
 200003ee:	d90e      	bls.n	2000040e <__udivmoddi4+0x1b6>
 200003f0:	19be      	adds	r6, r7, r6
-200003f2:	f100 3aff 	add.w	sl, r0, #4294967295
+200003f2:	f100 3aff 	add.w	sl, r0, #4294967295	@ 0xffffffff
 200003f6:	bf2c      	ite	cs
 200003f8:	f04f 0b01 	movcs.w	fp, #1
 200003fc:	f04f 0b00 	movcc.w	fp, #0
@@ -6600,7 +6600,7 @@ Disassembly of section .data:
 20000426:	45b4      	cmp	ip, r6
 20000428:	d90e      	bls.n	20000448 <__udivmoddi4+0x1f0>
 2000042a:	19be      	adds	r6, r7, r6
-2000042c:	f103 38ff 	add.w	r8, r3, #4294967295
+2000042c:	f103 38ff 	add.w	r8, r3, #4294967295	@ 0xffffffff
 20000430:	bf2c      	ite	cs
 20000432:	f04f 0901 	movcs.w	r9, #1
 20000436:	f04f 0900 	movcc.w	r9, #0
@@ -6650,7 +6650,7 @@ Disassembly of section .data:
 200004ba:	428e      	cmp	r6, r1
 200004bc:	d90e      	bls.n	200004dc <__udivmoddi4+0x284>
 200004be:	eb1c 0101 	adds.w	r1, ip, r1
-200004c2:	f100 38ff 	add.w	r8, r0, #4294967295
+200004c2:	f100 38ff 	add.w	r8, r0, #4294967295	@ 0xffffffff
 200004c6:	bf2c      	ite	cs
 200004c8:	f04f 0901 	movcs.w	r9, #1
 200004cc:	f04f 0900 	movcc.w	r9, #0
@@ -6668,7 +6668,7 @@ Disassembly of section .data:
 200004f0:	4291      	cmp	r1, r2
 200004f2:	d90e      	bls.n	20000512 <__udivmoddi4+0x2ba>
 200004f4:	eb1c 0202 	adds.w	r2, ip, r2
-200004f8:	f106 38ff 	add.w	r8, r6, #4294967295
+200004f8:	f106 38ff 	add.w	r8, r6, #4294967295	@ 0xffffffff
 200004fc:	bf2c      	ite	cs
 200004fe:	f04f 0901 	movcs.w	r9, #1
 20000502:	f04f 0900 	movcc.w	r9, #0

@@ -29,6 +29,7 @@ char command_buffer[buflen] = "";
 char response_buffer[buflen] = "";
 int p = 0;  // pointer to the command buffer
 int burn_state = 0;             // not running the burn wire until triggered
+int radio_initialized = 0;      // radio not initialized until it is
 
 bool reserved_addr(uint8_t addr) {
   return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
@@ -233,6 +234,16 @@ int main() {
             // Save the last time you TX'd on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
             sprintf(buffer_RADIO_TX, "RADIO_TX\n");
+            if (radio_initialized == 0) {
+                //slate->radio = rfm9x_mk(RFM9X_SPI, RFM9X_RESET, RFM9X_CS, RFM9X_TX, RFM9X_RX, RFM9X_CLK);
+                //rfm9x_init(&slate->radio);
+                //printf("Brought up RFM9X v%d", rfm9x_version(&slate->radio));
+                radio_initialized = 1;
+            }
+            //rfm9x_set_tx_power(r, 15);
+            //rfm9x_send(rfm9x_t *r, char *data, uint32_t l, uint8_t keep_listening,
+            //    uint8_t destination, uint8_t node, uint8_t identifier,
+             //   uint8_t flags);
         }
 
         // Time to RADIO_RX?    
@@ -240,6 +251,14 @@ int main() {
             // Save the last time you listened on the RADIO
             previous_time_RADIO_RX = get_absolute_time();    
             sprintf(buffer_RADIO_RX, "RADIO_RX\n");
+            if (radio_initialized == 0) {
+                //slate->radio = rfm9x_mk(RFM9X_SPI, RFM9X_RESET, RFM9X_CS, RFM9X_TX, RFM9X_RX, RFM9X_CLK);
+                //rfm9x_init(&slate->radio);
+                //printf("Brought up RFM9X v%d", rfm9x_version(&slate->radio));
+                radio_initialized = 1;
+            }
+            //rfm9x_receive(rfm9x_t *r, char *packet, uint8_t node,
+            //    uint8_t keep_listening, uint8_t with_ack);
         }
 
         // Time to UART?
