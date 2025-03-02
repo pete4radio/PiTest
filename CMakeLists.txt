@@ -34,14 +34,11 @@ project(blink C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-# Add executable. Default name is the project name, version 0.1
-
-add_executable(${PROJECT}
-    ${PROJECT}.c
-    )
-
-# pull in common dependencies
-target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi)
+# Get the TinyUSB config file for the RP2350 and put it into include
+#  git clone https://github.com/hathach/tinyusb.git
+add_executable(${PROJECT}  ${PROJECT}.c  )
+target_include_directories(${PROJECT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi hardware_uart hardware_gpio tinyusb_device tinyusb_board)
 
 if (PICO_CYW43_SUPPORTED)
     target_link_libraries(${PROJECT} pico_cyw43_arch_none)

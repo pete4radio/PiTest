@@ -6,19 +6,23 @@
 
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "pico/stdlib.h"
 #include "hardware/i2c.h"
+#include "pico/time.h"
+#include "hardware/gpio.h"
+#include "hardware/uart.h"
+#include "hardware/irq.h"
+#include "hardware/uart.h"
+#include "tusb.h"
 
 // Pico W devices use a GPIO on the WIFI chip for the LED,
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
 #ifdef CYW43_WL_GPIO_LED_PIN
 #include "pico/cyw43_arch.h"
 #endif
-#include "pico/time.h"
-
 
 #define PIN_SDA 4
 #define PIN_SCL 5
+#define PIN_BURN_WIRE 6
 
 #define buflen 60
 char command_buffer[buflen] = 0;
@@ -83,10 +87,8 @@ int main() {
     stdio_init_all();
     //  see https://forums.raspberrypi.com/viewtopic.php?t=300136
     int i = 100;
-//   while (!tud_cdc_connected() && i--) { sleep_ms(100);  }
-//    printf("USB_connected or timed out\n");
-
-
+   while (!tud_cdc_connected() && i--) { sleep_ms(100);  }
+    printf("USB_connected or timed out\n");
 
 //  Initialize the variables for each test 
 
@@ -299,10 +301,10 @@ int main() {
         // any characters in the serial buffer?
         int temp = getchar_timeout_us(0);
             if (temp != PICO_ERROR_TIMEOUT) {
-                if (temp = "\n") {               // We've got a command
+                if (temp == "\n") {               // We've got a command
                     command_buffer[p++] = 0;    // Null terminate the command buffer
                     p = 0;                      // Reset the pointer    
-                Another command// Process the command
+                // Process the command
                     if (strcmp(command_buffer, "BURN_ON") == 0) {
                         burn_state = 1;
                 // set gpio to burn wire to 1
@@ -317,7 +319,6 @@ int main() {
                 //  add character to command buffer
                 command_buffer[p++] = temp;  
             }
-
             sprintf(buffer_COMMANDS, "COMMANDS\n");
         }
 
