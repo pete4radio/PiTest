@@ -1,0 +1,10 @@
+^C:\USERS\PETE\.PICO-SDK\SDK\2.1.0\SRC\RP2350\BOOT_STAGE2\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Pete/Documents/Pico/PiTest -BC:/Users/Pete/Documents/Pico/PiTest/build --check-stamp-file C:/Users/Pete/Documents/Pico/PiTest/build/pico-sdk/src/rp2350/boot_stage2/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
