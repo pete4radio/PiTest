@@ -25,8 +25,8 @@
 #define PIN_BURN_WIRE 6
 
 #define buflen 60
-char command_buffer[buflen] = 0;
-char response_buffer[buflen] = 0;
+char command_buffer[buflen] = "";
+char response_buffer[buflen] = "";
 int p = 0;  // pointer to the command buffer
 int burn_state = 0;             // not running the burn wire until triggered
 
@@ -95,72 +95,71 @@ int main() {
 //  LED ON
     absolute_time_t previous_time_LED_ON = get_absolute_time();     // ms
     uint32_t interval_LED_ON = 1000;
-    char buffer_LED_ON[buflen] = 0;
+    char buffer_LED_ON[buflen] = "";
 
 // LED OFF
     absolute_time_t previous_time_LED_OFF = get_absolute_time();     // ms
     uint32_t interval_LED_OFF = 500;
-    char buffer_LED_OFF[buflen] = 0;
+    char buffer_LED_OFF[buflen] = "";
  
 //I2C Scan
     absolute_time_t previous_time_I2C = get_absolute_time();     // ms
     uint32_t interval_I2C = 1000;  
-    char buffer_I2C[buflen] = 0;
+    char buffer_I2C[buflen] = "";
 
 //  Display
     absolute_time_t previous_time_Display = get_absolute_time();     // ms
     uint32_t interval_Display = 1000;
-    char buffer_Display[buflen] = 0;
+    char buffer_Display[buflen] = "";
 
 //  RADIO_TX
     absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_TX = 1000;
-    char buffer_RADIO_TX[buflen] = 0;
-
+    char buffer_RADIO_TX[buflen] = "";
 //  RADIO_RX
     absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_RX = 1000;
-    char buffer_RADIO_RX[buflen] = 0;
+    char buffer_RADIO_RX[buflen] = "";
 
 //  UART
     absolute_time_t previous_time_UART = get_absolute_time();     // ms     
     uint32_t interval_UART = 1000;
-    char buffer_UART[buflen] = 0;
+    char buffer_UART[buflen] = "";
 
 // UART2
     absolute_time_t previous_time_UART2 = get_absolute_time();     // ms
     uint32_t interval_UART2 = 1000;
-    char buffer_UART2[buflen] = 0;
+    char buffer_UART2[buflen] = "";
 
 // MPPT1
     absolute_time_t previous_time_MPPT1 = get_absolute_time();     // ms
     uint32_t interval_MPPT1 = 1000;
-    char buffer_MPPT1[buflen] = 0;
+    char buffer_MPPT1[buflen] = "";
 
 // MPPT2
     absolute_time_t previous_time_MPPT2 = get_absolute_time();     // ms
     uint32_t interval_MPPT2 = 1000;
-    char buffer_MPPT2[buflen] = 0;
+    char buffer_MPPT2[buflen] = "";
 
 // Power
     absolute_time_t previous_time_Power = get_absolute_time();     // ms
     uint32_t interval_Power = 1000;
-    char buffer_Power[buflen] = 0;
+    char buffer_Power[buflen] = "";
 
 // BURN_WIRE
     absolute_time_t previous_time_BURN_WIRE = get_absolute_time();     // ms
     uint32_t interval_BURN_WIRE = 1000;
-    char buffer_BURN_WIRE[buflen] = 0;
+    char buffer_BURN_WIRE[buflen] = "";
 
 // WDT
     absolute_time_t previous_time_WDT = get_absolute_time();     // ms      
     uint32_t interval_WDT = 1000;
-    char buffer_WDT[buflen] = 0;
+    char buffer_WDT[buflen] = "";
 
 //  COMMANDS
     absolute_time_t previous_time_COMMANDS = get_absolute_time();     // ms
     uint32_t interval_COMMANDS = 1000;
-    char buffer_COMMANDS[buflen] = 0;
+    char buffer_COMMANDS[buflen] = "";
 
 // Prevent loop from burning too much CPU   
     const int LOOP_THROTTLE_DELAY_MS = 100;
@@ -301,8 +300,8 @@ int main() {
         // any characters in the serial buffer?
         int temp = getchar_timeout_us(0);
             if (temp != PICO_ERROR_TIMEOUT) {
-                if (temp == "\n") {               // We've got a command
-                    command_buffer[p++] = 0;    // Null terminate the command buffer
+                if (temp == '\n') {               // We've got a command
+                    command_buffer[p++] = '\0';    // Null terminate the command buffer
                     p = 0;                      // Reset the pointer    
                 // Process the command
                     if (strcmp(command_buffer, "BURN_ON") == 0) {
@@ -311,7 +310,7 @@ int main() {
                         gpio_put(PIN_BURN_WIRE, 1);
                         previous_time_BURN_WIRE = get_absolute_time(); 
                     }
-                    IF (strcmp(command_buffer, "another command\n") == 0) {
+                    if (strcmp(command_buffer, "another command\n") == 0) {
                         burn_state = 0;
                     }   
                     
