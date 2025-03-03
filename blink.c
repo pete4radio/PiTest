@@ -36,6 +36,8 @@ char command_buffer[buflen] = "";
 char response_buffer[buflen] = "";
 int p = 0;  // pointer to the command buffer
 int burn_state = 0;             // not running the burn wire until triggered
+int radio_initialized = 0;      // radio not initialized until it is
+int power_histogram[20] = {0};  // histogram of received power levels
 
 bool reserved_addr(uint8_t addr) {
   return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
@@ -240,13 +242,45 @@ int main() {
             // Save the last time you TX'd on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
             sprintf(buffer_RADIO_TX, "RADIO_TX\n");
+            if (radio_initialized == 0) {  //check each time so radio can be hot swapped in.
+                //slate->radio = rfm9x_mk(RFM9X_SPI, RFM9X_RESET, RFM9X_CS, RFM9X_TX, RFM9X_RX, RFM9X_CLK);
+                //rfm9x_init(&slate->radio);
+                //printf("Brought up RFM9X v%d", rfm9x_version(&slate->radio));
+                radio_initialized = 1;
+            }
+            // For range test, loop through every power level
+            //for (int i = 0; i < 20; i++) {
+            //rfm9x_set_tx_power(r, i);
+            // send the power level that was used
+            //sprintf(buffer_RADIO_TX, "RADIO_TX power level %d\n", i);
+            //rfm9x_send(rfm9x_t *r, char *buffer_RADIO_TX, uint32_t l, uint8_t keep_listening,
+            //    uint8_t destination, uint8_t node, uint8_t identifier,
+             //   uint8_t flags);
         }
 
-        // Time to RADIO_RX?    
+        // Time to check for received packets? (RADIO_RX?)    
         if (absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
             // Save the last time you listened on the RADIO
             previous_time_RADIO_RX = get_absolute_time();    
             sprintf(buffer_RADIO_RX, "RADIO_RX\n");
+            if (radio_initialized == 0) {
+                //slate->radio = rfm9x_mk(RFM9X_SPI, RFM9X_RESET, RFM9X_CS, RFM9X_TX, RFM9X_RX, RFM9X_CLK);
+                //rfm9x_init(&slate->radio);
+                //printf("Brought up RFM9X v%d", rfm9x_version(&slate->radio));
+                radio_initialized = 1;
+            }
+            // if we got a packet, add it to the histogram
+            //power_histogram[power]++;
+            //rfm9x_receive(rfm9x_t *r, char *packet, uint8_t node,
+            //    uint8_t keep_listening, uint8_t with_ack);
+            // // Print the power histogram into buffer_RADIO_RX
+            for (int i = 0; i < 20; i++) {
+                char temp[10];
+                sprintf(temp, "%d ", power_histogram[i]);
+                strcat(buffer_RADIO_RX, temp);
+            }
+            strcat(buffer_RADIO_RX, "\n");
+            printf("%s", buffer_RADIO_RX);
         }
 
         // Time to UART?
@@ -316,8 +350,9 @@ int main() {
                     gpio_put(PIN_BURN_WIRE, 1);
                     previous_time_BURN_WIRE = get_absolute_time(); 
                 }
-                if (strcmp(command_buffer, "another command\n") == 0) {
-                    burn_state = 0;
+                if (strcmp(command_buffer, "RESTART_HISTOGRAM\n") == 0) {
+                    // Zero out the array
+                    memset(power_histogram, 0, sizeof(power_histogram));
                 }   
             }
             else if (temp != PICO_ERROR_TIMEOUT)
