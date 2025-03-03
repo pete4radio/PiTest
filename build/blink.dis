@@ -1,5 +1,5 @@
 
-C:/Users/Pete/Documents/Pico/PiTest/build/blink.elf:     file format elf32-littlearm
+C:/Users/pete/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
 
 Sections:
 Idx Name          Size      VMA       LMA       File off  Algn
@@ -37,26 +37,26 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY
  16 .comment      00000045  00000000  00000000  000078f4  2**0
                   CONTENTS, READONLY
- 17 .debug_info   0002be7a  00000000  00000000  00007939  2**0
+ 17 .debug_info   0002be7c  00000000  00000000  00007939  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_abbrev 00007327  00000000  00000000  000337b3  2**0
+ 18 .debug_abbrev 00007327  00000000  00000000  000337b5  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_loclists 0001496c  00000000  00000000  0003aada  2**0
+ 19 .debug_loclists 0001496c  00000000  00000000  0003aadc  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  20 .debug_aranges 00000f70  00000000  00000000  0004f448  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  21 .debug_rnglists 00003cc7  00000000  00000000  000503b8  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .debug_line   0001b944  00000000  00000000  0005407f  2**0
+ 22 .debug_line   0001b951  00000000  00000000  0005407f  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 23 .debug_str    0000834c  00000000  00000000  0006f9c3  2**0
+ 23 .debug_str    0000834c  00000000  00000000  0006f9d0  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 24 .debug_frame  000029e0  00000000  00000000  00077d10  2**2
+ 24 .debug_frame  000029e0  00000000  00000000  00077d1c  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 25 .debug_line_str 00000290  00000000  00000000  0007a6f0  2**0
+ 25 .debug_line_str 00000290  00000000  00000000  0007a6fc  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
-C:/Users/Pete/Documents/Pico/PiTest/build/blink.elf:     file format elf32-littlearm
+C:/Users/pete/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
 
 
 Disassembly of section .text:
