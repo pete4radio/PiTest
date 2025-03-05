@@ -1,0 +1,108 @@
+{
+	"kind" : "toolchains",
+	"toolchains" : 
+	[
+		{
+			"compiler" : 
+			{
+				"id" : "GNU",
+				"implicit" : {},
+				"path" : "/home/pi/.pico-sdk/toolchain/13_3_Rel1/bin/arm-none-eabi-gcc",
+				"version" : ""
+			},
+			"language" : "ASM",
+			"sourceFileExtensions" : 
+			[
+				"s",
+				"S",
+				"asm"
+			]
+		},
+		{
+			"compiler" : 
+			{
+				"id" : "GNU",
+				"implicit" : 
+				{
+					"includeDirectories" : 
+					[
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc/arm-none-eabi/13.3.1/include",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc/arm-none-eabi/13.3.1/include-fixed",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/include"
+					],
+					"linkDirectories" : 
+					[
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc/arm-none-eabi/13.3.1/thumb/v8-m.main+fp/softfp",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/lib/thumb/v8-m.main+fp/softfp",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc/arm-none-eabi/13.3.1",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/lib"
+					],
+					"linkFrameworkDirectories" : [],
+					"linkLibraries" : []
+				},
+				"path" : "/home/pi/.pico-sdk/toolchain/13_3_Rel1/bin/arm-none-eabi-gcc",
+				"version" : "13.3.1"
+			},
+			"language" : "C",
+			"sourceFileExtensions" : 
+			[
+				"c",
+				"m"
+			]
+		},
+		{
+			"compiler" : 
+			{
+				"id" : "GNU",
+				"implicit" : 
+				{
+					"includeDirectories" : 
+					[
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/include/c++/13.3.1",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/include/c++/13.3.1/arm-none-eabi/thumb/v8-m.main+fp/softfp",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/include/c++/13.3.1/backward",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc/arm-none-eabi/13.3.1/include",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc/arm-none-eabi/13.3.1/include-fixed",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/include"
+					],
+					"linkDirectories" : 
+					[
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc/arm-none-eabi/13.3.1/thumb/v8-m.main+fp/softfp",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/lib/thumb/v8-m.main+fp/softfp",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc/arm-none-eabi/13.3.1",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/lib/gcc",
+						"/home/pi/.pico-sdk/toolchain/13_3_Rel1/arm-none-eabi/lib"
+					],
+					"linkFrameworkDirectories" : [],
+					"linkLibraries" : []
+				},
+				"path" : "/home/pi/.pico-sdk/toolchain/13_3_Rel1/bin/arm-none-eabi-g++",
+				"version" : "13.3.1"
+			},
+			"language" : "CXX",
+			"sourceFileExtensions" : 
+			[
+				"C",
+				"M",
+				"c++",
+				"cc",
+				"cpp",
+				"cxx",
+				"mm",
+				"mpp",
+				"CPP",
+				"ixx",
+				"cppm",
+				"ccm",
+				"cxxm",
+				"c++m"
+			]
+		}
+	],
+	"version" : 
+	{
+		"major" : 1,
+		"minor" : 0
+	}
+}
