@@ -58,6 +58,7 @@
 #define SAMWISE_RF_MOSI_PIN (15)
 #define SAMWISE_RF_D0_PIN (20)
 
+// Name a datatype for the SPI pins which makes it easier to create the storage and pass it around
 typedef struct spi_pins_t
 {
     uint8_t CIPO;

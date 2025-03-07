@@ -115,7 +115,7 @@ int main() {
 
 //  LED ON
     absolute_time_t previous_time_LED_ON = get_absolute_time();     // ms
-    uint32_t interval_LED_ON = 1000000;
+    uint32_t interval_LED_ON = 7000000;
     char buffer_LED_ON[buflen] = "";
 
 // LED OFF
