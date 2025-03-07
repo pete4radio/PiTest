@@ -39,7 +39,8 @@ int p = 0;  // pointer to the command buffer
 int burn_state = 0;             // not running the burn wire until triggered
 int radio_initialized = 0;      // radio not initialized until it is
 int power_histogram[20] = {0};  // histogram of received power levels
-int rfm96_init(spi_pins_t spi_pins);
+int rfm96_init(spi_pins_t spi_pins);   //declaration for init which lives in rfm96.c
+//  define storage and load them with values from pins.h
 spi_pins_t spi_pins =
 {
     .RESET = SAMWISE_RF_RST_PIN,
@@ -49,8 +50,7 @@ spi_pins_t spi_pins =
     .CS = SAMWISE_RF_CS_PIN,
 };
 
-
-
+// for the I2C scanner, these I2C addresses are reserved
 bool reserved_addr(uint8_t addr) {
   return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
 }
@@ -85,7 +85,7 @@ int pico_I2C_init(void) {
     return PICO_OK;
 }
 
-// Turn the led on or off
+// function to turn the led on or off
 void pico_set_led(bool led_on) {
 #if defined(PICO_DEFAULT_LED_PIN)
     // Just set the GPIO on or off
