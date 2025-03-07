@@ -11,7 +11,8 @@
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
 #include "hardware/irq.h"
-#include "hardware/uart.h"
+#include "hardware/spi.h"
+#include "pins.h"
 #include "tusb.h"
 
 // from logger.h
@@ -38,6 +39,17 @@ int p = 0;  // pointer to the command buffer
 int burn_state = 0;             // not running the burn wire until triggered
 int radio_initialized = 0;      // radio not initialized until it is
 int power_histogram[20] = {0};  // histogram of received power levels
+int rfm96_init(spi_pins_t spi_pins);
+spi_pins_t spi_pins =
+{
+    .RESET = SAMWISE_RF_RST_PIN,
+    .CIPO = SAMWISE_RF_MISO_PIN,
+    .COPI = SAMWISE_RF_MOSI_PIN,
+    .SCK = SAMWISE_RF_SCK_PIN,
+    .CS = SAMWISE_RF_CS_PIN,
+};
+
+
 
 bool reserved_addr(uint8_t addr) {
   return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
@@ -96,7 +108,7 @@ int main() {
     stdio_init_all();
     //  see https://forums.raspberrypi.com/viewtopic.php?t=300136
     int i = 100;
-   while (!tud_cdc_connected() && i--) { sleep_ms(100);  }
+    while (!tud_cdc_connected() && i--) { sleep_ms(100);  }
     printf("USB_connected or timed out\n");
 
 //  Initialize the variables for each test 
@@ -242,12 +254,8 @@ int main() {
             // Save the last time you TX'd on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
             sprintf(buffer_RADIO_TX, "RADIO_TX\n");
-            if (radio_initialized == 0) {  //check each time so radio can be hot swapped in.
-                //slate->radio = rfm9x_mk(RFM9X_SPI, RFM9X_RESET, RFM9X_CS, RFM9X_TX, RFM9X_RX, RFM9X_CLK);
-                //rfm9x_init(&slate->radio);
-                //printf("Brought up RFM9X v%d", rfm9x_version(&slate->radio));
-                radio_initialized = 1;
-            }
+            if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
+                radio_initialized = rfm96_init(spi_pins);;
             // For range test, loop through every power level
             //for (int i = 0; i < 20; i++) {
             //rfm9x_set_tx_power(r, i);
@@ -263,12 +271,8 @@ int main() {
             // Save the last time you listened on the RADIO
             previous_time_RADIO_RX = get_absolute_time();    
             sprintf(buffer_RADIO_RX, "RADIO_RX\n");
-            if (radio_initialized == 0) {
-                //slate->radio = rfm9x_mk(RFM9X_SPI, RFM9X_RESET, RFM9X_CS, RFM9X_TX, RFM9X_RX, RFM9X_CLK);
-                //rfm9x_init(&slate->radio);
-                //printf("Brought up RFM9X v%d", rfm9x_version(&slate->radio));
-                radio_initialized = 1;
-            }
+            if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
+                radio_initialized = rfm96_init(spi_pins);
             // if we got a packet, add it to the histogram
             //power_histogram[power]++;
             //rfm9x_receive(rfm9x_t *r, char *packet, uint8_t node,

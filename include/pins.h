@@ -58,4 +58,13 @@
 #define SAMWISE_RF_MOSI_PIN (15)
 #define SAMWISE_RF_D0_PIN (20)
 
+typedef struct spi_pins_t
+{
+    uint8_t CIPO;
+    uint8_t COPI;
+    uint8_t SCK;
+    uint8_t CS;
+    uint8_t RESET;
+} spi_pins_t;
+
 #endif

@@ -2663,7 +2663,7 @@
 		{
 			"backtrace" : 1,
 			"compileGroupIndex" : 0,
-			"path" : "src/rfm9x.c",
+			"path" : "src/rfm96.c",
 			"sourceGroupIndex" : 0
 		},
 		{
