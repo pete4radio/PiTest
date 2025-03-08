@@ -77,7 +77,7 @@ int pico_burn_wire_init(void) {
 }
 
 int pico_I2C_init(void) {
-    i2c_init(i2c0, 100 * 1000000);
+    i2c_init(i2c0, 100 * 1000);
     gpio_set_function(PIN_SDA, GPIO_FUNC_I2C);
     gpio_set_function(PIN_SCL, GPIO_FUNC_I2C);
     gpio_pull_up(PIN_SDA);

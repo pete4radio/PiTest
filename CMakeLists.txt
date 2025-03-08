@@ -48,4 +48,6 @@ endif()
 # create map/bin/hex file etc.
 pico_add_extra_outputs(${PROJECT})
 
-# add url via pico_set_program_url
+# open serial port
+#pico_enable_stdio_uart(${PROJECT} 1)
+#pico_enable_stdio_usb(${PROJECT} 1)

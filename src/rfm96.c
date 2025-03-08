@@ -112,13 +112,13 @@ int rfm96_init(spi_pins_t spi_pins) {
 
     // 
     // Ports  Seems like it should be SPI1 but flight code has SPI0
-    spi_inst_t *spi = spi1;
+    spi_inst_t *spi = spi0;
 
     // Initialize SPI port at 1 MHz
     spi_init(spi, 1000*1000);
 
     // Set SPI bus details --RFM9X.pdf 4.3 p75: CPOL = 0, CPHA = 0 (mode 0) MSB first
-    spi_set_format(spi1, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+    spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
     // 0x42 is the Chip ID and the value returned should be 0x11
     uint8_t v = 0;
