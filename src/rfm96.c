@@ -112,17 +112,18 @@ int rfm96_init(spi_pins_t spi_pins) {
 
     // 
     // Ports  Seems like it should be SPI1 but flight code has SPI0
-    spi_inst_t *spi = spi0;
+    spi_inst_t *spi = spi1;
 
     // Initialize SPI port at 1 MHz
     spi_init(spi, 1000*1000);
 
     // Set SPI bus details --RFM9X.pdf 4.3 p75: CPOL = 0, CPHA = 0 (mode 0) MSB first
-    spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+    // This is also the pico-sdk default:spi_set_format(spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+    spi_set_format(spi1, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
     // 0x42 is the Chip ID and the value returned should be 0x11
     uint8_t v = 0;
-    printf((reg_read(spi, spi_pins, 0x42, &v, 1) == 0) ? "RFM9X Chip ID read success\n" : "RFM9X Chip ID read failed\n");
-    printf((v == 0x11) ? "RFM9X version check success\n" : "RFM9X version check failed\n");
+    printf((reg_read(spi, spi_pins, 0x42, &v, 1) == 1) ? "RFM9X Chip ID read success\n" : "RFM9X Chip ID read failed\n");
+    printf((v == 0x11) ? "RFM9X version check success\n" : "RFM9X version check failed, returned %02x\n", v);
     return v == 0x11;       //Allows the superloop to keep trying if it didn't initialize 
 }
