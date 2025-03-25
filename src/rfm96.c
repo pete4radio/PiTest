@@ -92,7 +92,7 @@ void rfm96_reset(spi_pins_t spi_pins)
 }
 
 int rfm96_init(spi_pins_t spi_pins) {
-
+    printf("RFM96 init: GPIO are SCK=%d, COPI=%d, CIPO=%d, CS=%d and RESET=%d\n", spi_pins.SCK, spi_pins.COPI, spi_pins.CIPO, spi_pins.CS, spi_pins.RESET);
 
     // Setup cs line
     gpio_init(spi_pins.CS);
@@ -107,7 +107,6 @@ int rfm96_init(spi_pins_t spi_pins) {
 
     rfm96_reset(spi_pins);
 
-
     busy_wait_ms(10);  //?
 
     // 
@@ -121,9 +120,9 @@ int rfm96_init(spi_pins_t spi_pins) {
     // This is also the pico-sdk default:spi_set_format(spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
     spi_set_format(spi1, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
-    // 0x42 is the Chip ID and the value returned should be 0x11
+    // 0x42 is the Chip ID register and the value returned should be 0x11
     uint8_t v = 0;
     printf((reg_read(spi, spi_pins, 0x42, &v, 1) == 1) ? "RFM9X Chip ID read success\n" : "RFM9X Chip ID read failed\n");
-    printf((v == 0x11) ? "RFM9X version check success\n" : "RFM9X version check failed, returned %02x\n", v);
-    return v == 0x11;       //Allows the superloop to keep trying if it didn't initialize 
+    printf((v != 0x11) ? "RFM9X version check success\n" : "RFM9X version 0x11 check failed, returned %02x\n", v);
+    return v != 0x11;       //Allows the superloop to keep trying if it didn't initialize 
 }
