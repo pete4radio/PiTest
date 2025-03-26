@@ -39,7 +39,7 @@ int p = 0;  // pointer to the command buffer
 int burn_state = 0;             // not running the burn wire until triggered
 int radio_initialized = 0;      // radio not initialized until it is
 int power_histogram[20] = {0};  // histogram of received power levels
-int rfm96_init(spi_pins_t spi_pins);   //declaration for init which lives in rfm96.c
+int rfm96_init(spi_pins_t *spi_pins);   //declaration for init which lives in rfm96.c
 //  define storage and load them with values from pins.h
 spi_pins_t spi_pins =
 {
@@ -254,14 +254,14 @@ int main() {
             // Save the last time you TX'd on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
             sprintf(buffer_RADIO_TX, "RADIO_TX\n");
-            if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
-                radio_initialized = rfm96_init(spi_pins);;
+            //if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
+            //    radio_initialized = rfm96_init(spi_pins);;
             // For range test, loop through every power level
             //for (int i = 0; i < 20; i++) {
-            //rfm9x_set_tx_power(r, i);
+            //rfm96_set_tx_power(r, i);
             // send the power level that was used
             //sprintf(buffer_RADIO_TX, "RADIO_TX power level %d\n", i);
-            //rfm9x_send(rfm9x_t *r, char *buffer_RADIO_TX, uint32_t l, uint8_t keep_listening,
+            //rfm96_send(rfm96_t *r, char *buffer_RADIO_TX, uint32_t l, uint8_t keep_listening,
             //    uint8_t destination, uint8_t node, uint8_t identifier,
              //   uint8_t flags);
         }
@@ -271,11 +271,11 @@ int main() {
             // Save the last time you listened on the RADIO
             previous_time_RADIO_RX = get_absolute_time();    
             sprintf(buffer_RADIO_RX, "RADIO_RX\n");
-            if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
-                radio_initialized = rfm96_init(spi_pins);
+            //if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
+            //    radio_initialized = rfm96_init(spi_pins);
             // if we got a packet, add it to the histogram
             //power_histogram[power]++;
-            //rfm9x_receive(rfm9x_t *r, char *packet, uint8_t node,
+            //rfm96_receive(rfm96_t *r, char *packet, uint8_t node,
             //    uint8_t keep_listening, uint8_t with_ack);
             // // Print the power histogram into buffer_RADIO_RX
             for (int i = 0; i < 20; i++) {
