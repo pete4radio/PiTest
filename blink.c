@@ -49,6 +49,7 @@ spi_pins_t spi_pins =
     .COPI = SAMWISE_RF_MOSI_PIN,
     .SCK = SAMWISE_RF_SCK_PIN,
     .CS = SAMWISE_RF_CS_PIN,
+    .D0 = SAMWISE_RF_D0_PIN
 };
 
 // for the I2C scanner, these I2C addresses are reserved
@@ -264,8 +265,8 @@ int main() {
                 sprintf(buffer_RADIO_TX, "RADIO_TX power level %d\n", i);
                 rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                 rfm96_transmit();
-                while (!rfm96_tx_done())
-                    ; // spin until TX done
+                sleep_ms(10);  //  give the radio time to TX before "are we there yet?"
+                while (rfm96_tx_done()); // spin until TX done
             }
             sprintf(buffer_RADIO_TX, "RADIO_TX packets sent\n"); 
         }

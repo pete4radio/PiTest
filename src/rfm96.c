@@ -666,12 +666,7 @@ uint8_t rfm96_get_mode()
      gpio_set_function(SAMWISE_RF_SCK_PIN, GPIO_FUNC_SPI);
      gpio_set_function(SAMWISE_RF_MOSI_PIN, GPIO_FUNC_SPI);
      gpio_set_function(SAMWISE_RF_MISO_PIN, GPIO_FUNC_SPI);
- 
-     // Setup busy line
-     gpio_init(SAMWISE_RF_D0_PIN);
-     gpio_set_dir(SAMWISE_RF_D0_PIN, GPIO_IN);
-     gpio_pull_down(SAMWISE_RF_D0_PIN);
- 
+     
      rfm96_reset();
      busy_wait_ms(10);
      spi_pins->spi = global_spi;
@@ -689,6 +684,13 @@ uint8_t rfm96_get_mode()
     printf((reg_read(0x42, &v, 1) == 1) ? "RFM9X Chip ID read success\n" : "RFM9X Chip ID read failed\n");
     printf((v != 0x11) ? "RFM9X version check success\n" : "RFM9X version 0x11 check failed, returned %02x\n", v);
 
+    // Setup busy line, which signals when RX packet received or TX packet sent
+     // Requires _RH_RF95_REG_40_DIO_MAPPING1 to be set to 0x00, the power on reset (POR) default
+     gpio_init(SAMWISE_RF_D0_PIN);
+     gpio_set_dir(SAMWISE_RF_D0_PIN, GPIO_IN);
+     gpio_pull_down(SAMWISE_RF_D0_PIN);
+     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, 0x00); // Just in case: DIO0 is TX done and RX done
+ 
      /*
       * Calibrate the oscillator
       */
@@ -760,37 +762,39 @@ uint8_t rfm96_get_mode()
  
  void rfm96_transmit()
  {
-     // we do not have an LNA
+//   // we do not have an LNA
      rfm96_set_mode(TX_MODE);
-     uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
-     dioValue = bits_set(dioValue, 6, 7, 0b00);
-     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
+//   uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
+//   dioValue = bits_set(dioValue, 6, 7, 0b00);
+//   rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
  }
  
  void rfm96_listen()
  {
      rfm96_set_mode(RX_MODE);
-     uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
-     dioValue = bits_set(dioValue, 6, 7, 0b00);
-     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
+//   uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
+//   dioValue = bits_set(dioValue, 6, 7, 0b00);
+//   rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
  }
  
  uint8_t rfm96_tx_done()
  {
-     return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x8) >> 3;
- }
+//     return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x8) >> 3;
+       return gpio_get(SAMWISE_RF_D0_PIN);  // Datasheet says DIO0 is high when TX done
+}
  
  uint8_t rfm96_rx_done()
  {
-     uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
-     if (dioValue)
-     {
-         return dioValue;
-     }
-     else
-     {
-         return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x40) >> 6;
-     }
+//     uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
+//     if (dioValue)
+//   {
+//       return dioValue;
+//   }
+//   else
+//   {
+//       return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x40) >> 6;
+//   }
+     return gpio_get(SAMWISE_RF_D0_PIN);  // Datasheet says DIO0 is high when RX done
  }
  
  int rfm96_await_rx()
