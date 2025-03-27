@@ -3,7 +3,7 @@
 #include "hardware/spi.h"
 #include "pins.h"
 
-// Strategy differs from flight software.  Only check the radio functionality and do the range test:
+// Strategy differs from flight software.   Check only  the radio functionality & do range test:
 //   o  SPI is used everywhere, so lets just make it a global.  CS is used only in init and 
 // at lowest level routines and it's clumsy to pass it around.  Use SAMWISE_RF_CS_PIN.
 //   o  pass by value (except buffers) to avoid corruption and nasty bugs later (this code needs
@@ -20,9 +20,7 @@ spi_inst_t *global_spi = spi1;
  */
 void reg_write(const uint8_t reg, const uint8_t data);
 
-int reg_read(const uint8_t reg,
-    uint8_t *buf,
-    uint8_t nbytes);
+int reg_read(const uint8_t reg, uint8_t *buf, uint8_t nbytes);
 
 void rfm96_reset();
 
@@ -35,13 +33,13 @@ int rfm96_init(spi_pins_t *spi_pins);
 // Write 1 byte to the specified register
 void reg_write(const uint8_t reg, const uint8_t data) {
 
-    uint8_t msg[2];
+    uint8_t msg[2];    // Need two bytes as we need to clock out the address and the data
         
     // Construct message (set ~W bit low, MB bit low)
     msg[0] = 0x00 | reg;
     msg[1] = data;
 
-    // Write to register
+    // CS is active low:  Write to register
     gpio_put(SAMWISE_RF_CS_PIN, 0);
     spi_write_blocking(global_spi, msg, 2);
     gpio_put(SAMWISE_RF_CS_PIN, 1);
@@ -51,28 +49,28 @@ void reg_write(const uint8_t reg, const uint8_t data) {
 // registers.
 int reg_read(const uint8_t reg, uint8_t *buf, const uint8_t nbytes) {
 
-int num_bytes_read = 0;
-uint8_t mb = 0;
+    int num_bytes_read = 0;
+    uint8_t mb = 0;
 
-// Determine if multiple byte (MB) bit should be set
-if (nbytes < 1) {
-return -1;
-} else if (nbytes == 1) {
-mb = 0;
-} else {
-mb = 1;
-}
+    // Determine if multiple byte (MB) bit should be set
+    if (nbytes < 1) {
+    return -1;
+    } else if (nbytes == 1) {
+    mb = 0;
+    } else {
+    mb = 1;
+    }
 
-// Construct message (set ~W bit high)
-uint8_t msg = 0x80 | (mb << 6) | reg;
+    // Construct message (set ~W bit high)
+    uint8_t msg = 0x80 | (mb << 6) | reg;
 
-// Read from register
-gpio_put(SAMWISE_RF_CS_PIN, 0);
-spi_write_blocking(global_spi, &msg, 1);
-num_bytes_read = spi_read_blocking(global_spi, 0, buf, nbytes);
-gpio_put(SAMWISE_RF_CS_PIN, 1);
+    // Read from register
+    gpio_put(SAMWISE_RF_CS_PIN, 0);
+    spi_write_blocking(global_spi, &msg, 1);
+    num_bytes_read = spi_read_blocking(global_spi, 0, buf, nbytes);
+    gpio_put(SAMWISE_RF_CS_PIN, 1);
 
-return num_bytes_read;
+    return num_bytes_read;
 }
 
 /*
@@ -81,13 +79,13 @@ return num_bytes_read;
  * See RFM9X.pdf 4.3 p75
  *
  * One thing that isn't entirely clear from the docs is that the device expects
- * a 0x00 written for every data byte read.
+ * a 0x00 written for every data byte read, as in and out use the same clock
  */
 
 void cs_select()
  {
      busy_wait_us(5);
-     gpio_put(SAMWISE_RF_CS_PIN, 0);
+     gpio_put(SAMWISE_RF_CS_PIN, 0);    //CS is active low
      busy_wait_us(5);
  }
  
@@ -114,7 +112,7 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
  
      // GETS from the radio module the buffer.
      // The 0 represents the arbitrary byte that should be passed IN as part of
-     // the master/slave interaction.
+     // the SPI shared clock.
      spi_read_blocking(global_spi, 0, buf, n);
  
      cs_deselect();
@@ -132,7 +130,7 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
  
      spi_write_blocking(global_spi, &value, 1);
  
-     // Write to the radio that
+     // Write the buffer to the radio
      spi_write_blocking(global_spi, buf, n);
  
      cs_deselect();
@@ -141,11 +139,8 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
  /*
   * Write a single byte to an RFM9X register
   */
- void rfm96_put8(rfm96_reg_t reg, uint8_t v)
- {
-     rfm96_put_buf(reg, &v, 1);
- }
- 
+ void rfm96_put8(rfm96_reg_t reg, uint8_t v) { rfm96_put_buf(reg, &v, 1); }
+  
  /*
   * Get a single byte from an RFM9X register
   */
@@ -166,7 +161,8 @@ uint8_t rfm96_get8(rfm96_reg_t reg)
  
      sleep_us(100);
  
-     // set reset pin to input
+     // set reset pin to input.  the RESET line is active low and to
+     //  run the radio, it must be high Z.
      gpio_set_dir(SAMWISE_RF_RST_PIN, GPIO_IN);
  
      sleep_ms(5);
@@ -211,7 +207,7 @@ uint8_t rfm96_get_mode()
  }
  
  /*
-  * Set low frequency mode (RFM9X 6.2 p87)
+  * Get low frequency mode (RFM9X 6.2 p87)
   */
   uint8_t rfm96_get_low_freq_mode(spi_pins_t spi_pins)
  {
@@ -220,7 +216,7 @@ uint8_t rfm96_get_mode()
  }
  
  /*
-  * Set long range mode (enable/disable LoRa)
+  * Set loRa mode (chirp spread spectrum)
   * (RFM9X.pdf 6.2 p87)
   */
   void rfm96_set_lora(uint8_t lora)
@@ -230,6 +226,7 @@ uint8_t rfm96_get_mode()
          reg = bit_set(reg, 7);
      else
          reg = bit_clr(reg, 7);
+         printf("rfm96_set_lora: Warning, LoRa mode was set off");
      rfm96_put8(_RH_RF95_REG_01_OP_MODE, reg);
  }
  
@@ -398,7 +395,7 @@ uint8_t rfm96_get_mode()
  /*
   * Set raw output power. (RFM9X.pdf 6.4 p103)
   */
- void rfm96_set_output_power(uint8_t power)
+ void rfm96_set_raw_tx_power(uint8_t power)
  {
      uint8_t c = rfm96_get8(_RH_RF95_REG_09_PA_CONFIG);
      c = bits_set(c, 0, 3, power);
@@ -408,7 +405,7 @@ uint8_t rfm96_get_mode()
  /*
   * Get raw output power. (RFM9X.pdf 6.4 p103)
   */
- uint8_t rfm96_get_output_power()
+ uint8_t rfm96_get_raw_tx_power()
  {
      return bits_get(rfm96_get8(_RH_RF95_REG_09_PA_CONFIG), 0, 3);
  }
@@ -507,6 +504,7 @@ uint8_t rfm96_get_mode()
          if (bandwidth <= bw_bins[i])
          {
              bin = i;
+             printf("rfm96.c: Bandwidth was set to %d\n", bw_bins[i]);
              break;
          }
      }
@@ -553,8 +551,8 @@ uint8_t rfm96_get_mode()
  }
  
  /*
-  * Set the TX power. If chip is high power, valid values are [5, 23], otherwise
-  * [-1, 14]
+  * Set the TX power. If chip is high power, valid values are [5, 23], 
+  * otherwise [-1, 14]
   */
  void rfm96_set_tx_power(int8_t power)
  {
@@ -564,7 +562,7 @@ uint8_t rfm96_get_mode()
          rfm96_set_pa_dac(_RH_RF95_PA_DAC_ENABLE);
          rfm96_set_pa_output_pin(1);
          rfm96_set_max_power(0b111);
-         rfm96_set_output_power(0x0F);
+         rfm96_set_tx_power(0x0F);
          return;
      }
  
@@ -585,7 +583,7 @@ uint8_t rfm96_get_mode()
              rfm96_set_pa_dac(_RH_RF95_PA_DAC_DISABLE);
          }
          rfm96_set_pa_output_pin(1);
-         rfm96_set_output_power((power - 5) & 0xF);
+         rfm96_set_tx_power((power - 5) & 0xF);
      }
      else
      {
@@ -596,7 +594,7 @@ uint8_t rfm96_get_mode()
  
          rfm96_set_pa_output_pin(1);
          rfm96_set_max_power(0b111);
-         rfm96_set_output_power((power + 1) & 0x0F);
+         rfm96_set_tx_power((power + 1) & 0x0F);
      }
  }
  
@@ -608,11 +606,11 @@ uint8_t rfm96_get_mode()
  {
      if (0) // high power out of reach when laptop-powered
      {
-         return rfm96_get_output_power() + 5;
+         return rfm96_get_tx_power() + 5;
      }
      else
      {
-         return (int8_t)rfm96_get_output_power() - 1;
+         return (int8_t)rfm96_get_tx_power() - 1;
      }
  }
  
@@ -636,7 +634,7 @@ uint8_t rfm96_get_mode()
 //  The argument is passed by reference so spi can be modified
     { 
  #ifndef PICO
-     // Setup RF regulator
+     // Setup RF regulator on the PiCubed board
      gpio_init(SAMWISE_RF_REGULATOR_PIN);
      gpio_set_dir(SAMWISE_RF_REGULATOR_PIN, GPIO_OUT);
  
@@ -677,9 +675,8 @@ uint8_t rfm96_get_mode()
      // RFM9X.pdf 4.3 p75:
      // CPOL = 0, CPHA = 0 (mode 0)
      // MSB first
-     #define rfm96_SPI_BAUDRATE 1000000 // Define the SPI baud rate (example: 1 MHz)
-     spi_init(global_spi, rfm96_SPI_BAUDRATE);
-     // Set SPI bus details --RFM9X.pdf 4.3 p75: CPOL = 0, CPHA = 0 (mode 0) MSB first
+    spi_init(global_spi, RFM96_SPI_BAUDRATE);
+    // Set SPI bus details --RFM9X.pdf 4.3 p75: CPOL = 0, CPHA = 0 (mode 0) MSB first
     // This is also the pico-sdk default:spi_set_format(8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
     spi_set_format(global_spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
@@ -735,8 +732,8 @@ uint8_t rfm96_get_mode()
      rfm96_set_spreading_factor(7); /* Configure to 7 to match Radiohead library */
      ASSERT(rfm96_get_spreading_factor() == 7);
  
-     rfm96_set_crc(0); /* Disable CRC checking */
-     ASSERT(rfm96_is_crc_enabled() == 0);
+     rfm96_set_crc(1); /* Enable CRC checking */
+     ASSERT(rfm96_is_crc_enabled() == 1);
  
      rfm96_put8(_RH_RF95_REG_26_MODEM_CONFIG3, 0x00); /* No sync word */
      rfm96_set_tx_power(15);                          /* Known good value */
@@ -747,8 +744,10 @@ uint8_t rfm96_get_mode()
  
      rfm96_set_lna_boost(0b11);
      ASSERT(rfm96_get_lna_boost() == 0b11);
+     return (v != 0x11);    // 0 is success; 1 is failure; 0x11 is the Chip ID again
  }
 
+ //  Chip ID
  uint32_t rfm96_version(spi_pins_t spi_pins)
  {
      return (uint32_t)rfm96_get8(_RH_RF95_REG_42_VERSION);
@@ -797,6 +796,7 @@ uint8_t rfm96_get_mode()
      return 1;
  }
  
+ //Outgoing payload
  uint8_t rfm96_packet_to_fifo(uint8_t *buf, uint8_t n)
  {
      uint8_t old_mode = rfm96_get_mode();
@@ -811,6 +811,7 @@ uint8_t rfm96_get_mode()
      return 0;
  }
  
+ //Incoming payload
  uint8_t rfm96_packet_from_fifo(uint8_t *buf)
  {
      uint8_t n_read = 0;

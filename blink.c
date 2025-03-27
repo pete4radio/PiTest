@@ -21,6 +21,7 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/types.h"
+#include "string.h"
 
 // Pico W devices use a GPIO on the WIFI chip for the LED,
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
@@ -55,7 +56,7 @@ bool reserved_addr(uint8_t addr) {
   return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
 }
 
-// Perform initialisation
+// Perform initialisation of the tiny LED on a GPIO
 int pico_led_init(void) {
 #if defined(PICO_DEFAULT_LED_PIN)
     // A device like Pico that uses a GPIO for the LED will define PICO_DEFAULT_LED_PIN
@@ -254,16 +255,16 @@ int main() {
             // Save the last time you TX'd on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
             sprintf(buffer_RADIO_TX, "RADIO_TX\n");
-            //if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
-            //    radio_initialized = rfm96_init(spi_pins);;
+            if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
+                radio_initialized = rfm96_init(&spi_pins);;
             // For range test, loop through every power level
-            //for (int i = 0; i < 20; i++) {
-            //rfm96_set_tx_power(r, i);
-            // send the power level that was used
-            //sprintf(buffer_RADIO_TX, "RADIO_TX power level %d\n", i);
-            //rfm96_send(rfm96_t *r, char *buffer_RADIO_TX, uint32_t l, uint8_t keep_listening,
-            //    uint8_t destination, uint8_t node, uint8_t identifier,
-             //   uint8_t flags);
+            for (int i = 0; i < 20; i++) {
+                rfm96_set_tx_power(i);
+                // send the power level that was used
+                sprintf(buffer_RADIO_TX, "RADIO_TX power level %d\n", i);
+                rfm96_packet_to_fifo( buffer_RADIO_TX, strlen(buffer_RADIO_TX));
+                rfm96_transmit();
+            }
         }
 
         // Time to check for received packets? (RADIO_RX?)    
