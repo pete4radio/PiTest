@@ -108,7 +108,7 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
  
      // WRITES to the radio module the value, of length 1 byte, that says that we
      // are GETTING
-     spi_write_blocking(global_spi, reg & 0x7F, 1);
+     spi_write_blocking(global_spi, &value, 1);
  
      // GETS from the radio module the buffer.
      // The 0 represents the arbitrary byte that should be passed IN as part of
@@ -225,8 +225,10 @@ uint8_t rfm96_get_mode()
      if (lora)
          reg = bit_set(reg, 7);
      else
-         reg = bit_clr(reg, 7);
-         printf("rfm96_set_lora: Warning, LoRa mode was set off");
+         {
+            reg = bit_clr(reg, 7);
+            printf("rfm96_set_lora: Warning, LoRa mode was set off\n");
+         }
      rfm96_put8(_RH_RF95_REG_01_OP_MODE, reg);
  }
  
@@ -264,6 +266,7 @@ uint8_t rfm96_get_mode()
      rfm96_put8(_RH_RF95_REG_06_FRF_MSB, msb);
      rfm96_put8(_RH_RF95_REG_07_FRF_MID, mid);
      rfm96_put8(_RH_RF95_REG_08_FRF_LSB, lsb);
+     printf("rfm96: Set frequency to %d Hz\n", f);
  }
  
  /*
@@ -310,6 +313,7 @@ uint8_t rfm96_get_mode()
          denominator = v;
      if (v > 8)
          denominator = 8;
+    printf("rfm96: Set coding rate to %d\n", denominator);
  
      uint8_t cr_id = denominator - 4;
      uint8_t config = rfm96_get8(_RH_RF95_REG_1D_MODEM_CONFIG1);
@@ -594,7 +598,7 @@ uint8_t rfm96_get_mode()
  
          rfm96_set_pa_output_pin(1);
          rfm96_set_max_power(0b111);
-         rfm96_set_tx_power((power + 1) & 0x0F);
+         rfm96_set_raw_tx_power((power + 1) & 0x0F);
      }
  }
  
@@ -606,11 +610,11 @@ uint8_t rfm96_get_mode()
  {
      if (0) // high power out of reach when laptop-powered
      {
-         return rfm96_get_tx_power() + 5;
+         return rfm96_get_raw_tx_power() + 5;
      }
      else
      {
-         return (int8_t)rfm96_get_tx_power() - 1;
+         return (int8_t)rfm96_get_raw_tx_power() - 1;
      }
  }
  
@@ -744,6 +748,7 @@ uint8_t rfm96_get_mode()
  
      rfm96_set_lna_boost(0b11);
      ASSERT(rfm96_get_lna_boost() == 0b11);
+     printf("rfm96: Initialization complete\n");
      return (v != 0x11);    // 0 is success; 1 is failure; 0x11 is the Chip ID again
  }
 

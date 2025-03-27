@@ -207,7 +207,7 @@ int main() {
         if (absolute_time_diff_us(previous_time_I2C, get_absolute_time()) >= interval_I2C) {
             previous_time_I2C = get_absolute_time();    
             printf("I2C Bus Scan\n");
-            printf("   0  1  2  3 4 5 6 7 8 9 A B C D E F\n");
+            printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
 
             int ret;
             uint8_t rxdata;
@@ -262,9 +262,12 @@ int main() {
                 rfm96_set_tx_power(i);
                 // send the power level that was used
                 sprintf(buffer_RADIO_TX, "RADIO_TX power level %d\n", i);
-                rfm96_packet_to_fifo( buffer_RADIO_TX, strlen(buffer_RADIO_TX));
+                rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                 rfm96_transmit();
+                while (!rfm96_tx_done())
+                    ; // spin until TX done
             }
+            sprintf(buffer_RADIO_TX, "RADIO_TX packets sent\n"); 
         }
 
         // Time to check for received packets? (RADIO_RX?)    
