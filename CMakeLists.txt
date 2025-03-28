@@ -37,9 +37,12 @@ pico_sdk_init()
 
 # Get the TinyUSB config file for the RP2350 and put it into include
 #  git clone https://github.com/hathach/tinyusb.git
-add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c)
+add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c src/ws2812_init.c)
+
+
 target_include_directories(${PROJECT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi hardware_uart hardware_gpio tinyusb_device tinyusb_board)
+target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi hardware_uart 
+    hardware_gpio tinyusb_device tinyusb_board hardware_pio)
 
 if (PICO_CYW43_SUPPORTED)
     target_link_libraries(${PROJECT} pico_cyw43_arch_none)

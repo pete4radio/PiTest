@@ -23,6 +23,9 @@
 #include "pico/types.h"
 #include "string.h"
 
+// Neopixel aka WS2812
+#include "ws2812.h"
+
 // Pico W devices use a GPIO on the WIFI chip for the LED,
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
 #ifdef CYW43_WL_GPIO_LED_PIN
@@ -107,6 +110,9 @@ int main() {
 
     rc = pico_I2C_init();
     hard_assert(rc == PICO_OK);
+
+    rc = ws2812_init();
+    white();  //  Indicate we are idle
 
     //Initialize serial port(s) chosen in CMakeLists.txt
     stdio_init_all();
@@ -253,6 +259,7 @@ int main() {
 // It's always time to check for received packets. (RADIO_RX)    
             sprintf(buffer_RADIO_RX, "RADIO_RX\n");
             if (radio_initialized) {
+                green();  //  Indicate we are receiving
 // if we got a packet, add it to the histogram
                 while (rfm96_rx_done()) { // If this is a TX burst, keep receiving them.
 // bring in the packet from the fifo
@@ -286,6 +293,7 @@ int main() {
                     sprintf(buffer_RADIO_TX, "%d", i);
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_set_mode(TX_MODE);
+                    red();  //  Indicate we are transmitting
                     sleep_ms(5);  //  give the radio time to TX before "are we there yet?"
 
                     int i = 10;
@@ -293,6 +301,7 @@ int main() {
                     if (rfm96_tx_done()) printf("main: TX timed out\n");
                 }
                 rfm96_set_mode(RX_MODE);    //  Immediately back to receiving while doing other tests.
+                green();    //  Indicate we are receiving
                 sprintf(buffer_RADIO_TX, "RADIO_TX packets sent\n"); 
         }
     }
