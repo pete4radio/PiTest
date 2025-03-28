@@ -270,7 +270,6 @@ int main() {
                     strcat(buffer_RADIO_RX, "\n");
                 }
             }
-        }
 
 // Time to RADIO_TX?
          if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
@@ -288,11 +287,15 @@ int main() {
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_set_mode(TX_MODE);
                     sleep_ms(5);  //  give the radio time to TX before "are we there yet?"
-                    while (rfm96_tx_done()); // spin until TX done
+
+                    int i = 10;
+                    while (rfm96_tx_done() && i--) { sleep_ms(100);  }
+                    if (rfm96_tx_done()) printf("main: TX timed out\n");
                 }
                 rfm96_set_mode(RX_MODE);    //  Immediately back to receiving while doing other tests.
                 sprintf(buffer_RADIO_TX, "RADIO_TX packets sent\n"); 
         }
+    }
 
         // Time to UART?
         if (absolute_time_diff_us(previous_time_UART, get_absolute_time()) >= interval_UART) {
