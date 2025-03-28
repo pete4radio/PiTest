@@ -92,6 +92,17 @@ typedef struct rfm96_args_t
 } rfm96_args_t;
 #endif
 
+
+typedef enum
+{
+    SLEEP_MODE = 0,
+    STANDBY_MODE = 1,
+    FS_TX_MODE = 2,
+    TX_MODE = 3,
+    FS_RX_MODE = 4,
+    RX_MODE = 5,
+} rfm96_mode_t;
+
 /**
  * Assert a certain condition at runtime and raise an error if it is false.
  */
@@ -139,17 +150,7 @@ uint8_t rfm96_rx_done();
 uint8_t rfm96_packet_to_fifo(uint8_t *buf, uint8_t n);
 uint8_t rfm96_packet_from_fifo(uint8_t *buf);
 void rfm96_set_tx_power(int8_t power);
-
-
-typedef enum
-{
-    SLEEP_MODE = 0,
-    STANDBY_MODE = 1,
-    FS_TX_MODE = 2,
-    TX_MODE = 3,
-    FS_RX_MODE = 4,
-    RX_MODE = 5,
-} rfm96_mode_t;
+void rfm96_set_mode(rfm96_mode_t mode);
 
 typedef enum
 {

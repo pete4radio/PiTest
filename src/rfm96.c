@@ -634,7 +634,9 @@ uint8_t rfm96_get_mode()
  
  
  int rfm96_init(spi_pins_t *spi_pins)
- //  Initialization sets up pins, does a reset, allocates and checks the chip ID
+//  Initialization sets up pins, does a reset, allocates and checks the chip ID
+//  and sets up the radio for LoRa mode.  It also calibrates the oscillator and
+//  sets the frequency to RFM96_FREQUENCY and turns on the receiver.
 //  The argument is passed by reference so spi can be modified
     { 
  #ifndef PICO
@@ -718,8 +720,6 @@ uint8_t rfm96_get_mode()
       */
      rfm96_put8(_RH_RF95_REG_24_HOP_PERIOD, 0);
  
-     rfm96_set_mode(STANDBY_MODE);
- 
      /*
       * Configure tranceiver properties
       */
@@ -750,6 +750,8 @@ uint8_t rfm96_get_mode()
  
      rfm96_set_lna_boost(0b11);
      ASSERT(rfm96_get_lna_boost() == 0b11);
+
+     rfm96_set_mode(RX_MODE);       // Start by listening
      printf("rfm96: Initialization complete\n");
      return (v != 0x11);    // 0 is success; 1 is failure; 0x11 is the Chip ID again
  }
@@ -844,7 +846,7 @@ uint8_t rfm96_get_mode()
              // read the packet
              rfm96_get_buf(_RH_RF95_REG_00_FIFO, buf, fifo_length);
          }
-         n_read = fifo_length;
+         n_read = MIN(fifo_length, 255);
      }
      rfm96_set_mode(old_mode);
      return n_read;

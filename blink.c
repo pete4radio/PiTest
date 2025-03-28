@@ -37,9 +37,6 @@
 char command_buffer[buflen] = "";
 char response_buffer[buflen] = "";
 int p = 0;  // pointer to the command buffer
-int burn_state = 0;             // not running the burn wire until triggered
-int radio_initialized = 0;      // radio not initialized until it is
-int power_histogram[20] = {0};  // histogram of received power levels
 int rfm96_init(spi_pins_t *spi_pins);   //declaration for init which lives in rfm96.c
 //  define storage and load them with values from pins.h
 spi_pins_t spi_pins =
@@ -100,6 +97,11 @@ void pico_set_led(bool led_on) {
 
 int main() {
     int counter = 0;
+    int burn_state = 0;             // not running the burn wire until triggered
+    int radio_initialized = 0;      // radio not initialized until it is; after that we either TX or RX
+    int power_histogram[20] = {0};  // histogram of received power levels
+    int power = 0;                  // power level of received packet
+
     int rc = pico_led_init();
     hard_assert(rc == PICO_OK);
 
@@ -184,9 +186,6 @@ int main() {
     uint32_t interval_COMMANDS = 1000000;
     char buffer_COMMANDS[buflen] = "";
 
-// Prevent loop from burning too much CPU   
-    const int LOOP_THROTTLE_DELAY_MS = 100;
-
     while (true) {
 
     // Time to LED ON?
@@ -251,45 +250,48 @@ int main() {
             printf(buffer_WDT);
         }
 
-        // Time to RADIO_TX?
-        if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
-            // Save the last time you TX'd on the RADIO
-            previous_time_RADIO_TX = get_absolute_time();    
-            sprintf(buffer_RADIO_TX, "RADIO_TX\n");
-            if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
-                radio_initialized = rfm96_init(&spi_pins);;
-            // For range test, loop through every power level
-            for (int i = 0; i < 20; i++) {
-                rfm96_set_tx_power(i);
-                // send the power level that was used
-                sprintf(buffer_RADIO_TX, "RADIO_TX power level %d\n", i);
-                rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
-                rfm96_transmit();
-                sleep_ms(10);  //  give the radio time to TX before "are we there yet?"
-                while (rfm96_tx_done()); // spin until TX done
+// It's always time to check for received packets. (RADIO_RX)    
+            sprintf(buffer_RADIO_RX, "RADIO_RX\n");
+            if (radio_initialized) {
+// if we got a packet, add it to the histogram
+                while (rfm96_rx_done()) { // If this is a TX burst, keep receiving them.
+// bring in the packet from the fifo
+                    char packet[256];
+                    packet[rfm96_packet_from_fifo(packet)] = 0; //  Terminate with a null
+// read the TX power
+                    scanf(packet, "%d", &power);
+                    power_histogram[power]++;
+//Print the power histogram into buffer_RADIO_RX
+                    for (int i = 0; i < 20; i++) {
+                        char temp[10];
+                        sprintf(temp, "%d ", power_histogram[i]);
+                        strcat(buffer_RADIO_RX, temp);
+                    }
+                    strcat(buffer_RADIO_RX, "\n");
+                }
             }
-            sprintf(buffer_RADIO_TX, "RADIO_TX packets sent\n"); 
         }
 
-        // Time to check for received packets? (RADIO_RX?)    
-        if (absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
-            // Save the last time you listened on the RADIO
-            previous_time_RADIO_RX = get_absolute_time();    
-            sprintf(buffer_RADIO_RX, "RADIO_RX\n");
-            //if (radio_initialized == 0)  //check each time so radio can be hot swapped in.
-            //    radio_initialized = rfm96_init(spi_pins);
-            // if we got a packet, add it to the histogram
-            //power_histogram[power]++;
-            //rfm96_receive(rfm96_t *r, char *packet, uint8_t node,
-            //    uint8_t keep_listening, uint8_t with_ack);
-            // // Print the power histogram into buffer_RADIO_RX
-            for (int i = 0; i < 20; i++) {
-                char temp[10];
-                sprintf(temp, "%d ", power_histogram[i]);
-                strcat(buffer_RADIO_RX, temp);
-            }
-            strcat(buffer_RADIO_RX, "\n");
-            printf("%s", buffer_RADIO_RX);
+// Time to RADIO_TX?
+         if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
+// Save the last time you (tried to) TX on the RADIO
+            previous_time_RADIO_TX = get_absolute_time();    
+            sprintf(buffer_RADIO_TX, "RADIO_TX\n");
+            if (radio_initialized == 0) { //check each time so radio can be hot swapped in.
+                radio_initialized = rfm96_init(&spi_pins); }
+            if (radio_initialized) {
+// For range test, loop through every power level
+                for (int i = 20; i > 0; i--) {  // Strongest packet first, so we open the RX burst window
+                    rfm96_set_tx_power(i);
+// send the power level that was used
+                    sprintf(buffer_RADIO_TX, "%d", i);
+                    rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
+                    rfm96_set_mode(TX_MODE);
+                    sleep_ms(5);  //  give the radio time to TX before "are we there yet?"
+                    while (rfm96_tx_done()); // spin until TX done
+                }
+                rfm96_set_mode(RX_MODE);    //  Immediately back to receiving while doing other tests.
+                sprintf(buffer_RADIO_TX, "RADIO_TX packets sent\n"); 
         }
 
         // Time to UART?
@@ -369,8 +371,6 @@ int main() {
                 command_buffer[p++] = temp;   
             sprintf(buffer_COMMANDS, "COMMANDS last command:%s; response:%s\n", command_buffer, response_buffer);
         }
-
-        sleep_ms(LOOP_THROTTLE_DELAY_MS);
 
     }  // End SuperLoop
     return 0;
