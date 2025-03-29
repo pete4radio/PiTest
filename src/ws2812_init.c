@@ -27,23 +27,6 @@
 #define WS2812_PIN 2
 #endif
 
-int ws2812_init() {
-    //set_sys_clock_48();
-    printf("WS2812_init: Smoke Test, using pin %d\n", WS2812_PIN);
-
-    // todo get free sm
-    PIO pio;
-    uint sm;
-    uint offset;
-
-    
-
-
-// Check the pin is compatible with the platform
-#if WS2812_PIN >= NUM_BANK0_GPIOS
-#error Attempting to use a pin>=32 on a platform that does not support it
-#endif
-
 void put_pixel(PIO pio, uint sm, uint32_t pixel_grb) {
     pio_sm_put_blocking(pio, sm, pixel_grb << 8u);
 }
@@ -62,6 +45,25 @@ uint32_t urgbw_u32(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
             ((uint32_t) (w) << 24) |
             (uint32_t) (b);
 }
+
+int ws2812_init() {
+    //set_sys_clock_48();
+    printf("WS2812_init: Smoke Test, using pin %d\n", WS2812_PIN);
+
+    // todo get free sm
+    PIO pio;
+    uint sm;
+    uint offset;
+
+    
+
+
+// Check the pin is compatible with the platform
+#if WS2812_PIN >= NUM_BANK0_GPIOS
+#error Attempting to use a pin>=32 on a platform that does not support it
+#endif
+
+
     // This will find a free pio and state machine for our program and load it for us
     // We use pio_claim_free_sm_and_add_program_for_gpio_range (for_gpio_range variant)
     // so we will get a PIO instance suitable for addressing gpios >= 32 if needed and supported by the hardware

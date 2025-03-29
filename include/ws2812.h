@@ -4,7 +4,7 @@
 #include "ws2812.pio.h"
 
 // LED function declarations
-void led_init();
+int ws2812_init();
 void red();
 void green();
 void white();
