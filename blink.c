@@ -266,8 +266,15 @@ int main() {
                     char packet[256];
                     packet[rfm96_packet_from_fifo(packet)] = 0; //  Terminate with a null
 // read the TX power
-                    scanf(packet, "%d", &power);
-                    power_histogram[power]++;
+                    if (sscanf(packet, "%d", &power) == 1) {  // Parse the integer from the packet
+                        if (power >= 0 && power < 20) {       // Ensure power is within valid range
+                            power_histogram[power]++;
+                        } else {
+                            printf("Warning: Received out-of-range power value: %d\n", power);
+                        }
+                    } else {
+                        printf("Warning: Failed to parse power value from packet: %s\n", packet);
+                    }
 //Print the power histogram into buffer_RADIO_RX
                     for (int i = 0; i < 20; i++) {
                         char temp[10];
