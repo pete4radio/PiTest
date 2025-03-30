@@ -218,6 +218,7 @@ uint8_t rfm96_get_mode()
  /*
   * Set loRa mode (chirp spread spectrum)
   * (RFM9X.pdf 6.2 p87)
+  * Must be done in sleep mode, exits in operation mode.
   */
   void rfm96_set_lora(uint8_t lora)
  {
@@ -246,6 +247,7 @@ uint8_t rfm96_get_mode()
   * Triggers oscillator calibration (RFM9X.pdf 6.2 p93)
   *
   * Must be done outside of LoRa mode, since register 0x24 is aliased.
+  * This is done automatically when the chip is powered up.
   */
   void rfm96_trigger_osc_calibration()
  {
@@ -687,19 +689,17 @@ uint8_t rfm96_get_mode()
     printf((v != 0x11) ? "RFM9X version check success\n" : "RFM9X version 0x11 check failed, returned %02x\n", v);
 
     // Setup busy line, which signals when RX packet received or TX packet sent
-     // Requires _RH_RF95_REG_40_DIO_MAPPING1 to be set to 0x00, the power on reset (POR) default
      gpio_init(SAMWISE_RF_D0_PIN);
      gpio_set_dir(SAMWISE_RF_D0_PIN, GPIO_IN);
      gpio_pull_down(SAMWISE_RF_D0_PIN);
-     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, 0x00); // Just in case: DIO0 is TX done and RX done
- 
+   
      /*
       * Calibrate the oscillator
       */
-     rfm96_set_mode(STANDBY_MODE);
-     sleep_ms(10);
-     rfm96_trigger_osc_calibration();
-     sleep_ms(1000); // 1 second
+     //rfm96_set_mode(STANDBY_MODE);
+     //sleep_ms(10);
+     //rfm96_trigger_osc_calibration();
+     //sleep_ms(1000); // 1 second
  
      /*
       * Configure LoRa
@@ -709,8 +709,11 @@ uint8_t rfm96_get_mode()
      rfm96_set_lora(1);
  
      /*
-      * Use entire FIFO for RX & TX
-      * TODO: This seems bad for simultaneous RX & TX..
+      * Use entire FIFO for RX & TX.  We run half-duplex, so we don't  
+      * use it for RX when receiving and for TX when transmitting.
+      * The FIFO is 256 bytes long, so we set the base address to 0.
+      * The FIFO pointer is set to 0, so the first byte written to the FIFO
+      * will be at address 0.
       */
      rfm96_put8(_RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0);
      rfm96_put8(_RH_RF95_REG_0F_FIFO_RX_BASE_ADDR, 0);
@@ -764,19 +767,29 @@ uint8_t rfm96_get_mode()
  
  void rfm96_transmit()
  {
-//   // we do not have an LNA
-     rfm96_set_mode(TX_MODE);
-//   uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
-//   dioValue = bits_set(dioValue, 6, 7, 0b00);
-//   rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
+// Clear any pending interrupts
+    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
+//  Arm TX interrupts
+    uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
+    dioValue = bits_set(dioValue, 6, 7, 0b01);   //IRQ when TX is done please
+    rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
+//  Going on the air!
+    rfm96_set_mode(TX_MODE);
  }
  
  void rfm96_listen()
  {
-     rfm96_set_mode(RX_MODE);
-//   uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
-//   dioValue = bits_set(dioValue, 6, 7, 0b00);
-//   rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
+    uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
+    dioValue = bits_set(dioValue, 6, 7, 0b00);      //IRQ when RX is done please
+    rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
+//  Put incoming packet at bottom of FIFO
+    rfm96_put8(_RH_RF95_REG_0D_FIFO_ADDR_PTR, 0x00);
+ 
+    // Clear any pending interrupts
+    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
+
+    // Set RX mode
+    rfm96_set_mode(RX_MODE);
  }
  
  uint8_t rfm96_tx_done()
@@ -832,7 +845,7 @@ uint8_t rfm96_get_mode()
      // Check for CRC error
      if (rfm96_is_crc_enabled() && rfm96_crc_error())
      {
-         // TODO report somehow
+         printf("rfm96: got a packet but it has a CRC error\n");
      }
      else
      {

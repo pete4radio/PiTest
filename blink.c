@@ -259,23 +259,29 @@ int main() {
 // It's always time to check for received packets. (RADIO_RX)    
             sprintf(buffer_RADIO_RX, "RADIO_RX\n");
             if (radio_initialized) {
-                green();  //  Indicate we are receiving
 // if we got a packet, add it to the histogram
                 while (rfm96_rx_done()) { // If this is a TX burst, keep receiving them.
+                    if (rfm96_crc_error()); { break; } //  CRC error, so ignore it
 // bring in the packet from the fifo
                     char packet[256];
                     packet[rfm96_packet_from_fifo(packet)] = 0; //  Terminate with a null
+// how else to clear interrupts?
+                    rfm96_listen(); //  Set the radio to RX mode
+                    green();  //  Indicate we are receiving
 // read the TX power
-                    scanf(packet, "%d", &power);
+                    sscanf(packet, "%d", &power);
                     power_histogram[power]++;
 //Print the power histogram into buffer_RADIO_RX
+                    char temp[256] = ""; // Ensure sufficient size for the entire histogram
                     for (int i = 0; i < 20; i++) {
-                        char temp[10];
-                        sprintf(temp, "%d ", power_histogram[i]);
-                        strcat(buffer_RADIO_RX, temp);
+                        sprintf(temp + strlen(temp), "%d ", power_histogram[i]);
+                        snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), sizeof(buffer_RADIO_RX) - strlen(buffer_RADIO_RX), "%s", temp);
+                    sprintf(buffer_RADIO_RX, "RADIO_RX\n%s\n", temp);
                     }
-                    strcat(buffer_RADIO_RX, "\n");
                 }
+//  Next packet comes in at the bottom of the fifo
+                rfm96_listen(); //  Set the radio to RX mode
+                green();  //  Indicate we are receiving
             }
 
 // Time to RADIO_TX?
@@ -292,7 +298,7 @@ int main() {
 // send the power level that was used
                     sprintf(buffer_RADIO_TX, "%d", i);
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
-                    rfm96_set_mode(TX_MODE);
+                    rfm96_transmit();  //  Send the packet
                     red();  //  Indicate we are transmitting
                     sleep_ms(5);  //  give the radio time to TX before "are we there yet?"
 
@@ -300,7 +306,7 @@ int main() {
                     while (rfm96_tx_done() && i--) { sleep_ms(10);  }
                     if (rfm96_tx_done()) printf("main: TX timed out\n");
                 }
-                rfm96_set_mode(RX_MODE);    //  Immediately back to receiving while doing other tests.
+                rfm96_listen(); //  Set the radio to RX mode
                 green();    //  Indicate we are receiving
                 sprintf(buffer_RADIO_TX, "RADIO_TX packets sent\n"); 
         }

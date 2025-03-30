@@ -151,6 +151,7 @@ uint8_t rfm96_packet_to_fifo(uint8_t *buf, uint8_t n);
 uint8_t rfm96_packet_from_fifo(uint8_t *buf);
 void rfm96_set_tx_power(int8_t power);
 void rfm96_set_mode(rfm96_mode_t mode);
+uint8_t rfm96_crc_error();
 
 typedef enum
 {
