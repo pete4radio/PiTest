@@ -37,23 +37,23 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY
  16 .comment      00000045  00000000  00000000  00009f34  2**0
                   CONTENTS, READONLY
- 17 .debug_info   00046612  00000000  00000000  00009f79  2**0
+ 17 .debug_info   00046622  00000000  00000000  00009f79  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_abbrev 00008727  00000000  00000000  0005058b  2**0
+ 18 .debug_abbrev 0000872b  00000000  00000000  0005059b  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_loclists 0001fd9e  00000000  00000000  00058cb2  2**0
+ 19 .debug_loclists 0001fd9e  00000000  00000000  00058cc6  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .debug_aranges 000012a0  00000000  00000000  00078a50  2**3
+ 20 .debug_aranges 000012a0  00000000  00000000  00078a68  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 21 .debug_rnglists 000062fe  00000000  00000000  00079cf0  2**0
+ 21 .debug_rnglists 000062fe  00000000  00000000  00079d08  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .debug_line   00026cfa  00000000  00000000  0007ffee  2**0
+ 22 .debug_line   00026cfb  00000000  00000000  00080006  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 23 .debug_str    00009ca8  00000000  00000000  000a6ce8  2**0
+ 23 .debug_str    00009cc0  00000000  00000000  000a6d01  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 24 .debug_frame  00003688  00000000  00000000  000b0990  2**2
+ 24 .debug_frame  00003688  00000000  00000000  000b09c4  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 25 .debug_line_str 000002b4  00000000  00000000  000b4018  2**0
+ 25 .debug_line_str 000002b4  00000000  00000000  000b404c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 /Users/petemahowald/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
@@ -344,9 +344,9 @@ Disassembly of section .text:
 100002d2:	460b      	mov	r3, r1
 100002d4:	223c      	movs	r2, #60	@ 0x3c
 100002d6:	2100      	movs	r1, #0
-100002d8:	900c      	str	r0, [sp, #48]	@ 0x30
+100002d8:	9010      	str	r0, [sp, #64]	@ 0x40
 100002da:	a822      	add	r0, sp, #136	@ 0x88
-100002dc:	930d      	str	r3, [sp, #52]	@ 0x34
+100002dc:	9311      	str	r3, [sp, #68]	@ 0x44
 100002de:	f005 fdc7 	bl	10005e70 <memset>
 100002e2:	f003 f81b 	bl	1000331c <time_us_64>
 100002e6:	460b      	mov	r3, r1
@@ -368,17 +368,17 @@ Disassembly of section .text:
 1000030e:	460b      	mov	r3, r1
 10000310:	223c      	movs	r2, #60	@ 0x3c
 10000312:	2100      	movs	r1, #0
-10000314:	900a      	str	r0, [sp, #40]	@ 0x28
+10000314:	900e      	str	r0, [sp, #56]	@ 0x38
 10000316:	a84f      	add	r0, sp, #316	@ 0x13c
-10000318:	930b      	str	r3, [sp, #44]	@ 0x2c
+10000318:	930f      	str	r3, [sp, #60]	@ 0x3c
 1000031a:	f005 fda9 	bl	10005e70 <memset>
 1000031e:	f002 fffd 	bl	1000331c <time_us_64>
 10000322:	460b      	mov	r3, r1
 10000324:	223c      	movs	r2, #60	@ 0x3c
 10000326:	2100      	movs	r1, #0
-10000328:	900e      	str	r0, [sp, #56]	@ 0x38
+10000328:	900a      	str	r0, [sp, #40]	@ 0x28
 1000032a:	a85e      	add	r0, sp, #376	@ 0x178
-1000032c:	930f      	str	r3, [sp, #60]	@ 0x3c
+1000032c:	930b      	str	r3, [sp, #44]	@ 0x2c
 1000032e:	f005 fd9f 	bl	10005e70 <memset>
 10000332:	f002 fff3 	bl	1000331c <time_us_64>
 10000336:	223c      	movs	r2, #60	@ 0x3c
@@ -389,9 +389,9 @@ Disassembly of section .text:
 10000344:	460b      	mov	r3, r1
 10000346:	223c      	movs	r2, #60	@ 0x3c
 10000348:	2100      	movs	r1, #0
-1000034a:	9010      	str	r0, [sp, #64]	@ 0x40
+1000034a:	900c      	str	r0, [sp, #48]	@ 0x30
 1000034c:	a87c      	add	r0, sp, #496	@ 0x1f0
-1000034e:	9311      	str	r3, [sp, #68]	@ 0x44
+1000034e:	930d      	str	r3, [sp, #52]	@ 0x34
 10000350:	f005 fd8e 	bl	10005e70 <memset>
 10000354:	f002 ffe2 	bl	1000331c <time_us_64>
 10000358:	460b      	mov	r3, r1
@@ -455,10 +455,10 @@ Disassembly of section .text:
 100003e6:	f8df 81e0 	ldr.w	r8, [pc, #480]	@ 100005c8 <main+0x350>
 100003ea:	9305      	str	r3, [sp, #20]
 100003ec:	f002 ff96 	bl	1000331c <time_us_64>
-100003f0:	9a0c      	ldr	r2, [sp, #48]	@ 0x30
+100003f0:	9a10      	ldr	r2, [sp, #64]	@ 0x40
 100003f2:	4b6d      	ldr	r3, [pc, #436]	@ (100005a8 <main+0x330>)
 100003f4:	1a80      	subs	r0, r0, r2
-100003f6:	9a0d      	ldr	r2, [sp, #52]	@ 0x34
+100003f6:	9a11      	ldr	r2, [sp, #68]	@ 0x44
 100003f8:	eb61 0102 	sbc.w	r1, r1, r2
 100003fc:	4298      	cmp	r0, r3
 100003fe:	f171 0100 	sbcs.w	r1, r1, #0
@@ -481,9 +481,9 @@ Disassembly of section .text:
 10000430:	eb76 0101 	sbcs.w	r1, r6, r1
 10000434:	f2c0 81ba 	blt.w	100007ac <main+0x534>
 10000438:	f002 ff70 	bl	1000331c <time_us_64>
-1000043c:	9b0a      	ldr	r3, [sp, #40]	@ 0x28
+1000043c:	9b0e      	ldr	r3, [sp, #56]	@ 0x38
 1000043e:	1ac0      	subs	r0, r0, r3
-10000440:	9b0b      	ldr	r3, [sp, #44]	@ 0x2c
+10000440:	9b0f      	ldr	r3, [sp, #60]	@ 0x3c
 10000442:	eb61 0103 	sbc.w	r1, r1, r3
 10000446:	4287      	cmp	r7, r0
 10000448:	eb76 0101 	sbcs.w	r1, r6, r1
@@ -497,18 +497,18 @@ Disassembly of section .text:
 1000045c:	2b00      	cmp	r3, #0
 1000045e:	f040 8106 	bne.w	1000066e <main+0x3f6>
 10000462:	f002 ff5b 	bl	1000331c <time_us_64>
-10000466:	9b0e      	ldr	r3, [sp, #56]	@ 0x38
+10000466:	9b0a      	ldr	r3, [sp, #40]	@ 0x28
 10000468:	1ac0      	subs	r0, r0, r3
-1000046a:	9b0f      	ldr	r3, [sp, #60]	@ 0x3c
+1000046a:	9b0b      	ldr	r3, [sp, #44]	@ 0x2c
 1000046c:	eb61 0103 	sbc.w	r1, r1, r3
 10000470:	9b05      	ldr	r3, [sp, #20]
 10000472:	4287      	cmp	r7, r0
 10000474:	eb73 0101 	sbcs.w	r1, r3, r1
 10000478:	f2c0 8242 	blt.w	10000900 <main+0x688>
 1000047c:	f002 ff4e 	bl	1000331c <time_us_64>
-10000480:	9b10      	ldr	r3, [sp, #64]	@ 0x40
+10000480:	9b0c      	ldr	r3, [sp, #48]	@ 0x30
 10000482:	1ac0      	subs	r0, r0, r3
-10000484:	9b11      	ldr	r3, [sp, #68]	@ 0x44
+10000484:	9b0d      	ldr	r3, [sp, #52]	@ 0x34
 10000486:	eb61 0103 	sbc.w	r1, r1, r3
 1000048a:	4287      	cmp	r7, r0
 1000048c:	eb76 0101 	sbcs.w	r1, r6, r1
@@ -594,7 +594,7 @@ Disassembly of section .text:
 1000056e:	f002 fed5 	bl	1000331c <time_us_64>
 10000572:	2319      	movs	r3, #25
 10000574:	f04f 0201 	mov.w	r2, #1
-10000578:	e9cd 010c 	strd	r0, r1, [sp, #48]	@ 0x30
+10000578:	e9cd 0110 	strd	r0, r1, [sp, #64]	@ 0x40
 1000057c:	ec42 3040 	gpioc_bit_out_put r3, r2
 10000580:	f002 fecc 	bl	1000331c <time_us_64>
 10000584:	e9cd 0106 	strd	r0, r1, [sp, #24]
@@ -666,7 +666,7 @@ Disassembly of section .text:
 10000656:	e729      	b.n	100004ac <main+0x234>
 10000658:	f002 fe60 	bl	1000331c <time_us_64>
 1000065c:	4b9b      	ldr	r3, [pc, #620]	@ (100008cc <main+0x654>)
-1000065e:	e9cd 0110 	strd	r0, r1, [sp, #64]	@ 0x40
+1000065e:	e9cd 010c 	strd	r0, r1, [sp, #48]	@ 0x30
 10000662:	e893 0003 	ldmia.w	r3, {r0, r1}
 10000666:	907c      	str	r0, [sp, #496]	@ 0x1f0
 10000668:	f8ad 11f4 	strh.w	r1, [sp, #500]	@ 0x1f4
@@ -677,9 +677,9 @@ Disassembly of section .text:
 10000678:	f001 fc20 	bl	10001ebc <rfm96_listen>
 1000067c:	f001 fe84 	bl	10002388 <green>
 10000680:	f002 fe4c 	bl	1000331c <time_us_64>
-10000684:	9b0e      	ldr	r3, [sp, #56]	@ 0x38
+10000684:	9b0a      	ldr	r3, [sp, #40]	@ 0x28
 10000686:	1ac0      	subs	r0, r0, r3
-10000688:	9b0f      	ldr	r3, [sp, #60]	@ 0x3c
+10000688:	9b0b      	ldr	r3, [sp, #44]	@ 0x2c
 1000068a:	eb61 0103 	sbc.w	r1, r1, r3
 1000068e:	4287      	cmp	r7, r0
 10000690:	eb76 0101 	sbcs.w	r1, r6, r1
@@ -687,8 +687,8 @@ Disassembly of section .text:
 10000698:	f002 fe40 	bl	1000331c <time_us_64>
 1000069c:	4a8c      	ldr	r2, [pc, #560]	@ (100008d0 <main+0x658>)
 1000069e:	ab5e      	add	r3, sp, #376	@ 0x178
-100006a0:	900e      	str	r0, [sp, #56]	@ 0x38
-100006a2:	910f      	str	r1, [sp, #60]	@ 0x3c
+100006a0:	900a      	str	r0, [sp, #40]	@ 0x28
+100006a2:	910b      	str	r1, [sp, #44]	@ 0x2c
 100006a4:	ca07      	ldmia	r2, {r0, r1, r2}
 100006a6:	c303      	stmia	r3!, {r0, r1}
 100006a8:	801a      	strh	r2, [r3, #0]
@@ -740,8 +740,8 @@ Disassembly of section .text:
 10000728:	f002 fdf8 	bl	1000331c <time_us_64>
 1000072c:	4a6a      	ldr	r2, [pc, #424]	@ (100008d8 <main+0x660>)
 1000072e:	ab4f      	add	r3, sp, #316	@ 0x13c
-10000730:	900a      	str	r0, [sp, #40]	@ 0x28
-10000732:	910b      	str	r1, [sp, #44]	@ 0x2c
+10000730:	900e      	str	r0, [sp, #56]	@ 0x38
+10000732:	910f      	str	r1, [sp, #60]	@ 0x3c
 10000734:	ca07      	ldmia	r2, {r0, r1, r2}
 10000736:	c303      	stmia	r3!, {r0, r1}
 10000738:	a8c7      	add	r0, sp, #796	@ 0x31c
@@ -900,8 +900,8 @@ Disassembly of section .text:
 10000900:	f002 fd0c 	bl	1000331c <time_us_64>
 10000904:	4a1f      	ldr	r2, [pc, #124]	@ (10000984 <main+0x70c>)
 10000906:	ab5e      	add	r3, sp, #376	@ 0x178
-10000908:	900e      	str	r0, [sp, #56]	@ 0x38
-1000090a:	910f      	str	r1, [sp, #60]	@ 0x3c
+10000908:	900a      	str	r0, [sp, #40]	@ 0x28
+1000090a:	910b      	str	r1, [sp, #44]	@ 0x2c
 1000090c:	ca07      	ldmia	r2, {r0, r1, r2}
 1000090e:	c303      	stmia	r3!, {r0, r1}
 10000910:	481d      	ldr	r0, [pc, #116]	@ (10000988 <main+0x710>)

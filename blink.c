@@ -269,19 +269,31 @@ int main() {
                     rfm96_listen(); //  Set the radio to RX mode
                     green();  //  Indicate we are receiving
 // read the TX power
-                    sscanf(packet, "%d", &power);
-                    power_histogram[power]++;
-//Print the power histogram into buffer_RADIO_RX
-                    char temp[256] = ""; // Ensure sufficient size for the entire histogram
-                    for (int i = 0; i < 20; i++) {
-                        sprintf(temp + strlen(temp), "%d ", power_histogram[i]);
-                        snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), sizeof(buffer_RADIO_RX) - strlen(buffer_RADIO_RX), "%s", temp);
-                    sprintf(buffer_RADIO_RX, "RADIO_RX\n%s\n", temp);
+                    if (sscanf(packet, "%d", &power) == 1) {  // Parse the integer from the packet
+                        if (power >= 0 && power < 20) {       // Ensure power is within valid range
+                            power_histogram[power]++;
+                        } else {
+                            printf("Warning: Received out-of-range power value: %d\n", power);
+                        }
+                    } else {
+                        printf("Warning: Failed to parse power value from packet: %s\n", packet);
+                        break;
                     }
-                }
-//  Next packet comes in at the bottom of the fifo
-                rfm96_listen(); //  Set the radio to RX mode
-                green();  //  Indicate we are receiving
+// Print the power histogram into buffer_RADIO_RX
+                    int remaining_space = buflen - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
+                    for (int i = 0; i < 20 && remaining_space > 0; i++) {
+                        int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), remaining_space, "%d ", power_histogram[i]);
+                        if (written < 0 || written >= remaining_space) {
+                            // If snprintf fails or exceeds the remaining space, stop appending
+                            break;
+                        }
+                        remaining_space -= written; // Update the remaining space
+                    }
+                    strncat(buffer_RADIO_RX, "\n", remaining_space); // Safely append a newline
+             }
+             //  Next packet comes in at the bottom of the fifo
+             rfm96_listen(); //  Set the radio to RX mode
+             green();  //  Indicate we are receiving
             }
 
 // Time to RADIO_TX?
