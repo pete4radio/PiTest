@@ -85,3 +85,33 @@ void white(){
 }
 
 
+int ws2812_init() {
+    //set_sys_clock_48();
+    printf("WS2812_init: Smoke Test, using pin %d\n", WS2812_PIN);
+
+    // todo get free sm
+    PIO pio;
+    uint sm;
+    uint offset;
+
+    
+
+
+// Check the pin is compatible with the platform
+#if WS2812_PIN >= NUM_BANK0_GPIOS
+#error Attempting to use a pin>=32 on a platform that does not support it
+#endif
+
+
+    // This will find a free pio and state machine for our program and load it for us
+    // We use pio_claim_free_sm_and_add_program_for_gpio_range (for_gpio_range variant)
+    // so we will get a PIO instance suitable for addressing gpios >= 32 if needed and supported by the hardware
+    bool success = pio_claim_free_sm_and_add_program_for_gpio_range(&ws2812_program, &pio, &sm, &offset, WS2812_PIN, 1, true);
+    hard_assert(success);
+
+    ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);   
+    global_pio = pio;
+    global_sm = sm;
+
+    return PICO_OK;
+}

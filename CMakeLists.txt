@@ -37,7 +37,7 @@ pico_sdk_init()
 
 # Get the TinyUSB config file for the RP2350 and put it into include
 #  git clone https://github.com/hathach/tinyusb.git
-add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c src/ws2812_init.c)
+add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c)
 
 
 target_include_directories(${PROJECT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
