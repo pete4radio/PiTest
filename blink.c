@@ -274,15 +274,20 @@ int main() {
                         }
                     } else {
                         printf("Warning: Failed to parse power value from packet: %s\n", packet);
+                        break;
                     }
-//Print the power histogram into buffer_RADIO_RX
-                    for (int i = 0; i < 20; i++) {
-                        char temp[10];
-                        sprintf(temp, "%d ", power_histogram[i]);
-                        strcat(buffer_RADIO_RX, temp);
+// Print the power histogram into buffer_RADIO_RX
+                    int remaining_space = buflen - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
+                    for (int i = 0; i < 20 && remaining_space > 0; i++) {
+                        int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), remaining_space, "%d ", power_histogram[i]);
+                        if (written < 0 || written >= remaining_space) {
+                            // If snprintf fails or exceeds the remaining space, stop appending
+                            break;
+                        }
+                        remaining_space -= written; // Update the remaining space
                     }
-                    strcat(buffer_RADIO_RX, "\n");
-                }
+                    strncat(buffer_RADIO_RX, "\n", remaining_space); // Safely append a newline
+             }
             }
 
 // Time to RADIO_TX?
