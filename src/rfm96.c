@@ -741,7 +741,7 @@ uint8_t rfm96_get_mode()
      rfm96_set_spreading_factor(7); /* Configure to 7 to match Radiohead library */
      ASSERT(rfm96_get_spreading_factor() == 7);
  
-     rfm96_set_crc(1); /* Enable CRC checking */
+     rfm96_set_crc(1); /* Enable CRC sending */
      ASSERT(rfm96_is_crc_enabled() == 1);
  
      rfm96_put8(_RH_RF95_REG_26_MODEM_CONFIG3, 0x00); /* No sync word */
@@ -754,7 +754,7 @@ uint8_t rfm96_get_mode()
      rfm96_set_lna_boost(0b11);
      ASSERT(rfm96_get_lna_boost() == 0b11);
 
-     rfm96_set_mode(RX_MODE);       // Start by listening
+     rfm96_listen();       // Start by listening
      printf("rfm96: Initialization complete\n");
      return (v != 0x11);    // 0 is success; 1 is failure; 0x11 is the Chip ID again
  }
@@ -784,6 +784,7 @@ uint8_t rfm96_get_mode()
     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
 //  Put incoming packet at bottom of FIFO
     rfm96_put8(_RH_RF95_REG_0D_FIFO_ADDR_PTR, 0x00);
+    rfm96_put8(_RH_RF95_REG_10_FIFO_RX_CURRENT_ADDR, 0x00);
  
     // Clear any pending interrupts
     rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
