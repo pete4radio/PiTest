@@ -315,8 +315,8 @@ int main() {
                     sleep_ms(5);  //  give the radio time to TX before "are we there yet?"
 
                     int i = 10;
-                    while (rfm96_tx_done() && i--) { sleep_ms(10);  }
-                    if (rfm96_tx_done()) printf("main: TX timed out\n");
+                    while (!rfm96_tx_done() && i--) { sleep_ms(10);  }
+                    if (!rfm96_tx_done()) printf("main: TX timed out\n");
                 }
                 rfm96_listen(); //  Set the radio to RX mode
                 green();    //  Indicate we are receiving

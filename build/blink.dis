@@ -1,5 +1,5 @@
 
-/Users/petemahowald/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
+/home/pi/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
 
 Sections:
 Idx Name          Size      VMA       LMA       File off  Algn
@@ -47,16 +47,16 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  21 .debug_rnglists 000062fe  00000000  00000000  00079d08  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .debug_line   00026cfb  00000000  00000000  00080006  2**0
+ 22 .debug_line   00025c65  00000000  00000000  00080006  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 23 .debug_str    00009cc0  00000000  00000000  000a6d01  2**0
+ 23 .debug_str    00009b08  00000000  00000000  000a5c6b  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 24 .debug_frame  00003688  00000000  00000000  000b09c4  2**2
+ 24 .debug_frame  00003688  00000000  00000000  000af774  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 25 .debug_line_str 000002b4  00000000  00000000  000b404c  2**0
+ 25 .debug_line_str 0000027b  00000000  00000000  000b2dfc  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
-/Users/petemahowald/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
+/home/pi/Documents/pico/PiTest/build/blink.elf:     file format elf32-littlearm
 
 
 Disassembly of section .text:
@@ -715,11 +715,11 @@ Disassembly of section .text:
 100006e4:	200a      	movs	r0, #10
 100006e6:	f002 fd75 	bl	100031d4 <sleep_ms>
 100006ea:	f001 fcdd 	bl	100020a8 <rfm96_tx_done>
-100006ee:	b108      	cbz	r0, 100006f4 <main+0x47c>
+100006ee:	b908      	cbnz	r0, 100006f4 <main+0x47c>
 100006f0:	3c01      	subs	r4, #1
 100006f2:	d1f7      	bne.n	100006e4 <main+0x46c>
 100006f4:	f001 fcd8 	bl	100020a8 <rfm96_tx_done>
-100006f8:	b990      	cbnz	r0, 10000720 <main+0x4a8>
+100006f8:	b190      	cbz	r0, 10000720 <main+0x4a8>
 100006fa:	3d01      	subs	r5, #1
 100006fc:	d1da      	bne.n	100006b4 <main+0x43c>
 100006fe:	4d75      	ldr	r5, [pc, #468]	@ (100008d4 <main+0x65c>)
