@@ -243,6 +243,59 @@ uint8_t rfm96_get_mode()
      return bit_is_on(reg, 7);
  }
  
+/*Set Low Data Rate Optimization
+    * (RFM9X.pdf 6.4 p107)
+
+  */
+ void rfm96_set_ldro(uint8_t ldro)
+ {
+     uint8_t reg = rfm96_get8(_RH_RF95_REG_26_MODEM_CONFIG3);
+     if (ldro)
+         reg = bit_set(reg, 2);
+     else
+         {
+            reg = bit_clr(reg, 2);
+            printf("rfm96_set_ldro: Warning, LDRO was set off\n");
+         }
+     rfm96_put8(_RH_RF95_REG_26_MODEM_CONFIG3, reg);
+ }
+ 
+ /*
+  * Get Low Data Rate Optimization (MobileNode)
+  * (RFM9X.pdf 6.4 p107)
+  */
+  uint8_t rfm96_get_LDRO()
+ {
+     uint8_t reg = rfm96_get8(_RH_RF95_REG_26_MODEM_CONFIG3);
+     return bit_is_on(reg, 2);
+ }
+
+/* Set Auto AGC
+    (RFM9X.pdf 6.4 p107)
+  */
+ void rfm96_set_AGC(uint8_t agc)
+ {
+     uint8_t reg = rfm96_get8(_RH_RF95_REG_26_MODEM_CONFIG3);
+     if (agc)
+         reg = bit_set(reg, 3);
+     else
+         {
+            reg = bit_clr(reg, 3);
+            printf("rfm96_set_agc: Warning, Auto AGC was set off\n");
+         }
+     rfm96_put8(_RH_RF95_REG_26_MODEM_CONFIG3, reg);
+ }
+ 
+ /*
+  * Get AGC
+
+  */
+  uint8_t rfm96_get_agc()
+ {
+     uint8_t reg = rfm96_get8(_RH_RF95_REG_26_MODEM_CONFIG3);
+     return bit_is_on(reg, 3);
+ }
+
  /*
   * Triggers oscillator calibration (RFM9X.pdf 6.2 p93)
   *
@@ -744,7 +797,13 @@ uint8_t rfm96_get_mode()
      rfm96_set_crc(1); /* Enable CRC sending */
      ASSERT(rfm96_is_crc_enabled() == 1);
  
-     rfm96_put8(_RH_RF95_REG_26_MODEM_CONFIG3, 0x00); /* No sync word */
+     //rfm96_put8(_RH_RF95_REG_26_MODEM_CONFIG3, 0x00); /* No sync word */
+
+        rfm96_set_ldro(1); /* Enable low data rate optimization */
+        ASSERT(rfm96_get_LDRO() == 1);
+        rfm96_set_AGC(1); /* Enable auto AGC */
+        ASSERT(rfm96_get_agc() == 1);
+
      rfm96_set_tx_power(15);                          /* Known good value */
      ASSERT(rfm96_get_tx_power() == 15);
  
