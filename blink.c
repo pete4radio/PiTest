@@ -249,7 +249,7 @@ int main() {
             printf(buffer_MPPT1);
             printf(buffer_MPPT2);
             printf(buffer_Power);
-            printf(buffer_RADIO_RX);
+            printf("%s\n", buffer_RADIO_RX);
             printf(buffer_RADIO_TX);
             printf(buffer_UART);
             printf(buffer_UART2);
@@ -257,11 +257,15 @@ int main() {
         }
 
 // It's always time to check for received packets. (RADIO_RX)    
-            sprintf(buffer_RADIO_RX, "RADIO_RX\n");
+            sprintf(buffer_RADIO_RX, "RADIO_RX");
             if (radio_initialized) {
 // if we got a packet, add it to the histogram
                 while (rfm96_rx_done()) { // If this is a TX burst, keep receiving them.
-                    if (rfm96_crc_error()); { break; } //  CRC error, so ignore it
+                    if (rfm96_crc_error()); {
+                        int remaining_space = buflen - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
+                        strncat(buffer_RADIO_RX, " CRC error", remaining_space); // Safely append a newline
+                        break;  //  CRC error, so ignore it
+                    }
 // bring in the packet from the fifo
                     char packet[256];
                     packet[rfm96_packet_from_fifo(packet)] = 0; //  Terminate with a null
@@ -269,7 +273,7 @@ int main() {
                     rfm96_listen(); //  Set the radio to RX mode
                     green();  //  Indicate we are receiving
 // read the TX power
-                    if (sscanf(packet, "%d", &power) == 1) {  // Parse the integer from the packet
+                    if (sscanf(packet +  11, "%d", &power) == 1) {  // Parse the integer from the packet
                         if (power >= 0 && power < 20) {       // Ensure power is within valid range
                             power_histogram[power]++;
                         } else {
@@ -289,7 +293,6 @@ int main() {
                         }
                         remaining_space -= written; // Update the remaining space
                     }
-                    strncat(buffer_RADIO_RX, "\n", remaining_space); // Safely append a newline
              }
              //  Next packet comes in at the bottom of the fifo
              rfm96_listen(); //  Set the radio to RX mode
@@ -308,14 +311,14 @@ int main() {
                 for (int i = 20; i > 0; i--) {  // Strongest packet first, so we open the RX burst window
                     rfm96_set_tx_power(i);
 // send the power level that was used
-                    sprintf(buffer_RADIO_TX, "%d", i);
+                    sprintf(buffer_RADIO_TX, "\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFFTX Power = %d", i);
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_transmit();  //  Send the packet
                     red();  //  Indicate we are transmitting
                     sleep_ms(5);  //  give the radio time to TX before "are we there yet?"
 
                     int i = 10;
-                    while (!rfm96_tx_done() && i--) { sleep_ms(10);  }
+                    while (!rfm96_tx_done() && i--) { sleep_ms(100);  }
                     if (!rfm96_tx_done()) printf("main: TX timed out\n");
                 }
                 rfm96_listen(); //  Set the radio to RX mode
