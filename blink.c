@@ -102,6 +102,7 @@ int main() {
     int counter = 0;
     int burn_state = 0;             // not running the burn wire until triggered
     int radio_initialized = 0;      // radio not initialized until it is; after that we either TX or RX
+
     int power_histogram[20] = {0};  // histogram of received power levels
     int power = 0;                  // power level of received packet
 

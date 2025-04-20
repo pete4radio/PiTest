@@ -237,7 +237,7 @@ uint8_t rfm96_get_mode()
   * Get long range mode (LoRa status)
   * (RFM9X.pdf 6.2 p87)
   */
-  uint8_t rfm96_get_lora(spi_pins_t spi_pins)
+  uint8_t rfm96_get_lora()
  {
      uint8_t reg = rfm96_get8(_RH_RF95_REG_01_OP_MODE);
      return bit_is_on(reg, 7);
@@ -760,7 +760,14 @@ uint8_t rfm96_get_mode()
      rfm96_set_mode(SLEEP_MODE);
      sleep_ms(10);
      rfm96_set_lora(1);
- 
+     sleep_ms(10);
+     // check for SLEEP_MODE and LoRa mode
+        if((rfm96_get_mode() != SLEEP_MODE) || (rfm96_get_lora() != 1))
+        {
+            printf("rfm96: ERROR not in sleep mode or LoRa mode\n");
+            return 1;
+        }
+
      /*
       * Use entire FIFO for RX & TX.  We run half-duplex, so we don't  
       * use it for RX when receiving and for TX when transmitting.
@@ -768,13 +775,14 @@ uint8_t rfm96_get_mode()
       * The FIFO pointer is set to 0, so the first byte written to the FIFO
       * will be at address 0.
       */
+     rfm96_set_mode(STANDBY_MODE);
      rfm96_put8(_RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0);
      rfm96_put8(_RH_RF95_REG_0F_FIFO_RX_BASE_ADDR, 0);
  
      /*
       * Disable frequency hopping
       */
-     rfm96_put8(_RH_RF95_REG_24_HOP_PERIOD, 0);
+     //rfm96_put8(_RH_RF95_REG_24_HOP_PERIOD, 0);
  
      /*
       * Configure tranceiver properties

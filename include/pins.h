@@ -4,7 +4,7 @@
 #include <stdint.h>       // Include standard integer types
 #include "bit-support.h"  // Include bit manipulation functions
 
-#define RFM96_SPI_BAUDRATE (1000 * 1000)
+#define RFM96_SPI_BAUDRATE (5 * 1000 * 1000)
 #define RFM96_FREQUENCY 438100000
 #define RFM96_BANDWIDTH 125000
 
