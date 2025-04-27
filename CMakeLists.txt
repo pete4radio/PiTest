@@ -39,6 +39,8 @@ pico_sdk_init()
 #  git clone https://github.com/hathach/tinyusb.git
 add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c)
 
+#  Comment this out if you're building for the PiCubed pinout breadboard
+add_compile_definitions(PICO)
 
 target_include_directories(${PROJECT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi hardware_uart 
