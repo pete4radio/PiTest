@@ -308,8 +308,8 @@ int main() {
             if (radio_initialized == 0) { //check each time so radio can be hot swapped in.
                 radio_initialized = rfm96_init(&spi_pins); }
             if (radio_initialized) {
-// For range test, loop through every power level
-                for (int i = 20; i > 0; i--) {  // Strongest packet first, so we open the RX burst window
+// For range test, loop through every power level (start at 20 for actual test)
+                for (int i = 10; i > 0; i--) {  // Strongest packet first, so we open the RX burst window
                     rfm96_set_tx_power(i);
 // send the power level that was used
                     sprintf(buffer_RADIO_TX, "\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFFTX Power = %d", i);
