@@ -11,7 +11,12 @@
 //   o  No interrupts because when we're doing the radio, we're not doing anything else.
 //   o  For our purposes, a packet is a received transmission (no src and dest)
 // 
-spi_inst_t *global_spi = spi1;  
+
+#ifdef PICO
+    spi_inst_t *global_spi = spi0;
+#else
+    spi_inst_t *global_spi = spi1;
+#endif
 
 #define DEBUG 0
 
@@ -314,14 +319,15 @@ uint8_t rfm96_get_mode()
   */
   void rfm96_set_frequency(uint32_t f)
  {
-     uint32_t frf = (f / _RH_RF95_FSTEP) & 0xFFFFFF;
-     uint8_t msb = (frf >> 16) & 0xFF;
-     uint8_t mid = (frf >> 8) & 0xFF;
-     uint8_t lsb = frf & 0xFF;
-     rfm96_put8(_RH_RF95_REG_06_FRF_MSB, msb);
-     rfm96_put8(_RH_RF95_REG_07_FRF_MID, mid);
-     rfm96_put8(_RH_RF95_REG_08_FRF_LSB, lsb);
-     printf("rfm96: Set frequency to %d Hz\n", f);
+    //  compute with high precision and cast back to uint32_t
+    uint32_t frf = ((uint32_t)((double)f / (double)_RH_RF95_FSTEP)) & 0xFFFFFF;
+    uint8_t msb = (frf >> 16) & 0xFF;
+    uint8_t mid = (frf >> 8) & 0xFF;
+    uint8_t lsb = frf & 0xFF;
+    rfm96_put8(_RH_RF95_REG_06_FRF_MSB, msb);
+    rfm96_put8(_RH_RF95_REG_07_FRF_MID, mid);
+    rfm96_put8(_RH_RF95_REG_08_FRF_LSB, lsb);
+    printf("rfm96: Set frequency to %d Hz\n", f);
  }
  
  /*
