@@ -897,7 +897,7 @@ uint8_t rfm96_get_mode()
  //Outgoing payload
  uint8_t rfm96_packet_to_fifo(uint8_t *buf, uint8_t n)
  {
-     uint8_t old_mode = rfm96_get_mode();
+//   uint8_t old_mode = rfm96_get_mode();
      rfm96_set_mode(STANDBY_MODE);
  
      rfm96_put8(_RH_RF95_REG_0D_FIFO_ADDR_PTR, 0x00);
@@ -905,7 +905,7 @@ uint8_t rfm96_get_mode()
      rfm96_put_buf(_RH_RF95_REG_00_FIFO, buf, n);
      rfm96_put8(_RH_RF95_REG_22_PAYLOAD_LENGTH, n);
  
-     rfm96_set_mode(old_mode);
+//   rfm96_set_mode(old_mode);
      return 0;
  }
  
