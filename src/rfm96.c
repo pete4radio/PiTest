@@ -320,7 +320,7 @@ uint8_t rfm96_get_mode()
   void rfm96_set_frequency(uint32_t f)
  {
     //  compute with high precision and cast back to uint32_t
-    uint32_t frf = ((uint32_t)((double)f / (double)_RH_RF95_FSTEP)) & 0xFFFFFF;
+    uint32_t frf = ((uint32_t)((double)f / ((double)32000000 / (double) 524288))) & 0xFFFFFF;
     uint8_t msb = (frf >> 16) & 0xFF;
     uint8_t mid = (frf >> 8) & 0xFF;
     uint8_t lsb = frf & 0xFF;
