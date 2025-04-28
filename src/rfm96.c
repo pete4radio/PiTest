@@ -861,9 +861,6 @@ uint8_t rfm96_get_mode()
 //  Put incoming packet at bottom of FIFO
     rfm96_put8(_RH_RF95_REG_0D_FIFO_ADDR_PTR, 0x00);
     rfm96_put8(_RH_RF95_REG_10_FIFO_RX_CURRENT_ADDR, 0x00);
- 
-    // Clear any pending interrupts
-    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
 
     // Set RX mode
     rfm96_set_mode(RX_MODE);
