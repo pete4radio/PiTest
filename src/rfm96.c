@@ -840,12 +840,13 @@ uint8_t rfm96_get_mode()
  
  void rfm96_transmit()
  {
-// Clear any pending interrupts
-    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
 //  Arm TX interrupts
     uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
     dioValue = bits_set(dioValue, 6, 7, 0b01);   //IRQ when TX is done please
     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
+    // Clear any pending interrupts, they might be from the receiver
+    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
+
 //  Going on the air!
     rfm96_set_mode(TX_MODE);
  }
@@ -855,6 +856,8 @@ uint8_t rfm96_get_mode()
     uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
     dioValue = bits_set(dioValue, 6, 7, 0b00);      //IRQ when RX is done please
     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
+// Clear any pending interrupts, they might be from the transmitter
+    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
 //  Put incoming packet at bottom of FIFO
     rfm96_put8(_RH_RF95_REG_0D_FIFO_ADDR_PTR, 0x00);
     rfm96_put8(_RH_RF95_REG_10_FIFO_RX_CURRENT_ADDR, 0x00);
