@@ -10,8 +10,8 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
-# Ignore files inside config-files, and its sub-directories
-/config-files/**/*.*
+# Ignore files inside build, and its sub-directories
+/build/**/*.*
 
 # Allow tracking of files starting with "example."
-!/config-files/**/example.*
+!/build/**/*.uf2
