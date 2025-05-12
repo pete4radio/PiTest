@@ -154,6 +154,8 @@ int main() {
     absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_RX = 1000000;
     char buffer_RADIO_RX[buflen] = "";
+    char packet[256];
+    uint8_t nCRC = 0; // CRC error count
 
 //  UART
     absolute_time_t previous_time_UART = get_absolute_time();     // ms     
@@ -260,7 +262,7 @@ int main() {
         }
 
 // It's always time to check for received packets. (RADIO_RX)    
-            sprintf(buffer_RADIO_RX, "RX               ");
+            sprintf(buffer_RADIO_RX, "RX ");     //clears out the results buffer
             if (radio_initialized) {
 // if we got a packet, add it to the histogram
                 while (rfm96_rx_done()) { // If this is a TX burst, keep receiving them.
@@ -270,7 +272,6 @@ int main() {
                         break;  //  CRC error, so ignore it
                     }
 // bring in the packet from the fifo
-                    char packet[256];
                     packet[rfm96_packet_from_fifo(packet)] = 0; //  Terminate with a null
 // how else to clear interrupts?
                     rfm96_listen(); //  Set the radio to RX mode
@@ -286,17 +287,17 @@ int main() {
                         printf("Warning: Failed to parse power value from packet: %s\n", packet + 4);
                         break;
                     }
+                }
 // Print the power histogram into buffer_RADIO_RX
                     int remaining_space = buflen - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
                     for (int i = 0; (i < 20) && (remaining_space > 0); i++) {
-                        int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX) - 2, remaining_space, "%d ", power_histogram[i]);
+                        int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), remaining_space, "%d ", power_histogram[i]);
                         if (written < 0 || written >= remaining_space) {
-                            // If snprintf fails or exceeds the remaining space, stop appending
+                            printf("Warning: Buffer overflow while writing histogram\n");
                             break;
                         }
                         remaining_space -= written; // Update the remaining space
-                    }
-             }
+                    }               
              //  Next packet comes in at the bottom of the fifo
              rfm96_listen(); //  Set the radio to RX mode
              green();  //  Indicate we are receiving
