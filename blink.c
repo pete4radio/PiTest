@@ -136,7 +136,7 @@ int main() {
  
 //I2C Scan
     absolute_time_t previous_time_I2C = get_absolute_time();     // ms
-    uint32_t interval_I2C = 1000000;  
+    uint32_t interval_I2C = 100000000;  
     char buffer_I2C[buflen] = "";
 
 //  Display
@@ -148,6 +148,8 @@ int main() {
     absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_TX = 1000000;
     char buffer_RADIO_TX[buflen] = "";
+    radio_initialized = rfm96_init(&spi_pins);
+
 //  RADIO_RX
     absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_RX = 1000000;
@@ -258,11 +260,11 @@ int main() {
         }
 
 // It's always time to check for received packets. (RADIO_RX)    
-            sprintf(buffer_RADIO_RX, "RADIO_RX");
+            sprintf(buffer_RADIO_RX, "RX               ");
             if (radio_initialized) {
 // if we got a packet, add it to the histogram
                 while (rfm96_rx_done()) { // If this is a TX burst, keep receiving them.
-                    if (rfm96_crc_error()); {
+                    if (rfm96_crc_error()) {
                         int remaining_space = buflen - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
                         strncat(buffer_RADIO_RX, " CRC error", remaining_space); // Safely append a newline
                         break;  //  CRC error, so ignore it
@@ -274,20 +276,20 @@ int main() {
                     rfm96_listen(); //  Set the radio to RX mode
                     green();  //  Indicate we are receiving
 // read the TX power
-                    if (sscanf(packet +  11, "%d", &power) == 1) {  // Parse the integer from the packet
+                    if (sscanf(packet +  15, "%d", &power) == 1) {  // Parse the integer from the packet
                         if (power >= 0 && power < 20) {       // Ensure power is within valid range
                             power_histogram[power]++;
                         } else {
                             printf("Warning: Received out-of-range power value: %d\n", power);
                         }
                     } else {
-                        printf("Warning: Failed to parse power value from packet: %s\n", packet);
+                        printf("Warning: Failed to parse power value from packet: %s\n", packet + 4);
                         break;
                     }
 // Print the power histogram into buffer_RADIO_RX
                     int remaining_space = buflen - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
-                    for (int i = 0; i < 20 && remaining_space > 0; i++) {
-                        int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), remaining_space, "%d ", power_histogram[i]);
+                    for (int i = 0; (i < 20) && (remaining_space > 0); i++) {
+                        int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX) - 2, remaining_space, "%d ", power_histogram[i]);
                         if (written < 0 || written >= remaining_space) {
                             // If snprintf fails or exceeds the remaining space, stop appending
                             break;
@@ -299,7 +301,7 @@ int main() {
              rfm96_listen(); //  Set the radio to RX mode
              green();  //  Indicate we are receiving
             }
-
+//
 // Time to RADIO_TX?
          if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
 // Save the last time you (tried to) TX on the RADIO
@@ -312,7 +314,7 @@ int main() {
                 for (int i = 10; i > 0; i--) {  // Strongest packet first, so we open the RX burst window
                     rfm96_set_tx_power(i);
 // send the power level that was used
-                    sprintf(buffer_RADIO_TX, "\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFF\xFE\xFFTX Power = %d", i);
+                    sprintf(buffer_RADIO_TX, "\xFF\xFF\xFF\xFFTX Power = %d", i);
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_transmit();  //  Send the packet
                     red();  //  Indicate we are transmitting

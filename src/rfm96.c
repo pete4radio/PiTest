@@ -857,7 +857,8 @@ uint8_t rfm96_get_mode()
     dioValue = bits_set(dioValue, 6, 7, 0b00);      //IRQ when RX is done please
     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
 // Clear any pending interrupts, they might be from the transmitter
-    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
+    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0xFF);
+    if (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) != 0x00) {printf("rfm96_listen: IRQ flags not successfully cleared\n");};
 //  Put incoming packet at bottom of FIFO
     rfm96_put8(_RH_RF95_REG_0D_FIFO_ADDR_PTR, 0x00);
     rfm96_put8(_RH_RF95_REG_10_FIFO_RX_CURRENT_ADDR, 0x00);
