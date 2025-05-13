@@ -146,7 +146,7 @@ int main() {
 
 //  RADIO_TX
     absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms        
-    uint32_t interval_RADIO_TX = 1000000;
+    uint32_t interval_RADIO_TX = 8*1000* 1000;                        // Give the radio time to RX
     char buffer_RADIO_TX[buflen] = "";
     radio_initialized = rfm96_init(&spi_pins);
 
@@ -302,6 +302,7 @@ int main() {
              rfm96_listen(); //  Set the radio to RX mode
              green();  //  Indicate we are receiving
             }
+
 //
 // Time to RADIO_TX?
          if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
@@ -319,7 +320,7 @@ int main() {
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_transmit();  //  Send the packet
                     red();  //  Indicate we are transmitting
-                    sleep_ms(350);  //  give the radio time to TX before "are we there yet?"
+                    sleep_ms(301);  //  give the radio time to TX before "are we there yet?"
 
                     int i = 10;
                     while (!rfm96_tx_done() && i--) { sleep_ms(100);  }
