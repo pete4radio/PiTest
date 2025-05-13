@@ -802,8 +802,8 @@ uint8_t rfm96_get_mode()
                                         Radiohead, see SX1276 errata note 2.3 */
      ASSERT(rfm96_get_bandwidth() == RFM96_BANDWIDTH);
  
-     rfm96_set_coding_rate(5); /* Configure 4/5 to match Radiohead library */
-     ASSERT(rfm96_get_coding_rate() == 5);
+     rfm96_set_coding_rate(8); /* Configure 4/8 to match Giganteum */
+     ASSERT(rfm96_get_coding_rate() == 8);
  
      rfm96_set_spreading_factor(7); /* Configure to 7 to match Radiohead library */
      ASSERT(rfm96_get_spreading_factor() == 7);
