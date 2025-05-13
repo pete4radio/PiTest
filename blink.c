@@ -284,7 +284,7 @@ int main() {
                             printf("Warning: Received out-of-range power value: %d\n", power);
                         }
                     } else {
-                        printf("Warning: Failed to parse power value from packet: %s\n", packet + 4);
+                        printf("Warning: Failed to parse power value from packet: %s.\n", packet + 4);
                         break;
                     }
                 }
