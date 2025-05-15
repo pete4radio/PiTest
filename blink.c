@@ -304,11 +304,11 @@ int main() {
             }
 
 //
+        sprintf(buffer_RADIO_TX, "RADIO_TX\n");
 // Time to RADIO_TX?
          if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
 // Save the last time you (tried to) TX on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
-            sprintf(buffer_RADIO_TX, "RADIO_TX\n");
             if (radio_initialized == 0) { //check each time so radio can be hot swapped in.
                 radio_initialized = rfm96_init(&spi_pins); }
             if (radio_initialized) {
