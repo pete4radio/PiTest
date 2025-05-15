@@ -153,7 +153,7 @@ int main() {
 //  RADIO_RX
     absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_RX = 1000000;
-    char buffer_RADIO_RX[buflen] = "";
+    char buffer_RADIO_RX[buflen*2] = "";
     char packet[256];
     uint8_t nCRC = 0; // CRC error count
 
@@ -289,7 +289,7 @@ int main() {
                     }
                 }
 // Print the power histogram into buffer_RADIO_RX
-                    int remaining_space = buflen - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
+                    int remaining_space = buflen*2 - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
                     for (int i = 0; (i < 20) && (remaining_space > 0); i++) {
                         int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), remaining_space, "%d ", power_histogram[i]);
                         if (written < 0 || written >= remaining_space) {
@@ -320,7 +320,7 @@ int main() {
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_transmit();  //  Send the packet
                     red();  //  Indicate we are transmitting
-                    sleep_ms(301);  //  give the radio time to TX before "are we there yet?"
+                    sleep_ms(30);  //  give the radio time to TX before "are we there yet?"
 
                     int i = 10;
                     while (!rfm96_tx_done() && i--) { sleep_ms(100);  }

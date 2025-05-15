@@ -845,8 +845,8 @@ uint8_t rfm96_get_mode()
     dioValue = bits_set(dioValue, 6, 7, 0b01);   //IRQ when TX is done please
     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
     // Clear any pending interrupts, they might be from the receiver
-    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x00);
-
+    rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0xFF);
+    if (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) != 0x00) {printf("rfm96_transmit: IRQ flags not successfully cleared\n");};
 //  Going on the air!
     rfm96_set_mode(TX_MODE);
  }
