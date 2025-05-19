@@ -22,6 +22,10 @@
     #define SAMWISE_RF_CS_PIN (17)
     #define SAMWISE_RF_D0_PIN (20)
 
+    #define SAMWISE_MPPT_I2C (I2C_INSTANCE(0))
+    #define SAMWISE_MPPT_SDA_PIN (12)
+    #define SAMWISE_MPPT_SCL_PIN (13)
+
     #define SAMWISE_WATCHDOG_FEED_PIN (6)
 
 #else

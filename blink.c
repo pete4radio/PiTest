@@ -26,6 +26,9 @@
 // Neopixel aka WS2812
 #include "ws2812.h"
 
+//MPPT charge controllers
+#include "mppt.h"
+
 // Pico W devices use a GPIO on the WIFI chip for the LED,
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
 #ifdef CYW43_WL_GPIO_LED_PIN
@@ -80,10 +83,10 @@ int pico_burn_wire_init(void) {
 
 int pico_I2C_init(void) {
     i2c_init(i2c0, 100 * 1000);
-    gpio_set_function(PIN_SDA, GPIO_FUNC_I2C);
-    gpio_set_function(PIN_SCL, GPIO_FUNC_I2C);
-    gpio_pull_up(PIN_SDA);
-    gpio_pull_up(PIN_SCL);
+    gpio_set_function(SAMWISE_MPPT_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(SAMWISE_MPPT_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(SAMWISE_MPPT_SDA_PIN);
+    gpio_pull_up(SAMWISE_MPPT_SCL_PIN);
     return PICO_OK;
 }
 
@@ -136,7 +139,7 @@ int main() {
  
 //I2C Scan
     absolute_time_t previous_time_I2C = get_absolute_time();     // ms
-    uint32_t interval_I2C = 100000000;  
+    uint32_t interval_I2C = 1*1000*1000;  
     char buffer_I2C[buflen] = "";
 
 //  Display
@@ -217,7 +220,7 @@ int main() {
     // Time to I2C Scan?    
         if (absolute_time_diff_us(previous_time_I2C, get_absolute_time()) >= interval_I2C) {
             previous_time_I2C = get_absolute_time();    
-            printf("I2C Bus Scan\n");
+            printf("I2C0 Bus Scan\n");
             printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
 
             int ret;
@@ -349,7 +352,9 @@ int main() {
         // Time to MPPT1?
         if (absolute_time_diff_us(previous_time_MPPT1, get_absolute_time()) >= interval_MPPT1) {
             // Save the last time you checked MPPT1
-            previous_time_MPPT1 = get_absolute_time();    
+            previous_time_MPPT1 = get_absolute_time();
+            if (rc=init_mppt() == 0) { do_mppt(); } //  check if the mppt is initialized
+            printf("%d\n", rc);
             sprintf(buffer_MPPT1, "MPPT1\n");
         }
 
