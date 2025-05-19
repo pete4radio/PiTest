@@ -40,12 +40,13 @@ uint8_t init_mppt() {
         // Test I2C connection
         uint8_t result[1];
         uint8_t ctrl_chrg_en_addr = 0x23;
-        if (i2c_write_blocking(i2c0, LT8491_ADDR, &ctrl_chrg_en_addr, 1, true) != PICO_ERROR_GENERIC &&
-            i2c_read_blocking_until(i2c0, LT8491_ADDR, result, 1, false, make_timeout_time_ms(10)) != PICO_ERROR_GENERIC) {
-            printf("CTRL_CHRG_EN: %d\n", result[0]);
-        } else {
+        if (i2c_write_blocking_until(i2c0, LT8491_ADDR, &ctrl_chrg_en_addr, 1, true, make_timeout_time_ms(10)) == PICO_ERROR_GENERIC) {
             return 1;  // Error
         }
+        if (i2c_read_blocking_until(i2c0, LT8491_ADDR, result, 1, false, make_timeout_time_ms(10)) == PICO_ERROR_GENERIC) {
+            printf("CTRL_CHRG_EN: %d\n", result[0]);
+            return 1;  // Error
+            }
 
     // Write configuration values to LT8491
         for (size_t i = 0; i < sizeof(CFG) / sizeof(CFG[0]); i++) {
