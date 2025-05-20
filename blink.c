@@ -87,6 +87,11 @@ int pico_I2C_init(void) {
     gpio_set_function(SAMWISE_MPPT_SCL_PIN, GPIO_FUNC_I2C);
     gpio_pull_up(SAMWISE_MPPT_SDA_PIN);
     gpio_pull_up(SAMWISE_MPPT_SCL_PIN);
+    i2c_init(i2c1, 100 * 1000);
+    gpio_set_function(SAMWISE_MPPT_SDA_PIN - 2, GPIO_FUNC_I2C);
+    gpio_set_function(SAMWISE_MPPT_SCL_PIN - 2, GPIO_FUNC_I2C);
+    gpio_pull_up(SAMWISE_MPPT_SDA_PIN);
+    gpio_pull_up(SAMWISE_MPPT_SCL_PIN);
     return PICO_OK;
 }
 
@@ -240,7 +245,27 @@ int main() {
                 printf(ret < 0 ? "." : "@");
                 printf(addr % 16 == 15 ? "\n" : "  ");
             }
+      
+            printf("I2C1 Bus Scan\n");
+            printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
+
+            // Loop over addresses and see if there's an ACK.  This is fast, otherwise it 
+            // would be better to do this a frew addresses at a time.
+            for (int addr = 0; addr < (1 << 7); ++addr) {
+                if (addr % 16 == 0) {
+                    printf("%02x ", addr);
+                }
+
+                if (reserved_addr(addr))
+                    ret = PICO_ERROR_GENERIC;
+                else
+                    ret = i2c_read_blocking_until(i2c1, addr, &rxdata, 1, false, make_timeout_time_ms(10));
+
+                printf(ret < 0 ? "." : "@");
+                printf(addr % 16 == 15 ? "\n" : "  ");
+            }
         }   
+
 
         // Time to Display? 
         if (absolute_time_diff_us(previous_time_Display, get_absolute_time()) >= interval_Display) {
