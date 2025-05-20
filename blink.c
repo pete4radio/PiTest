@@ -90,8 +90,8 @@ int pico_I2C_init(void) {
     i2c_init(i2c1, 100 * 1000);
     gpio_set_function(SAMWISE_MPPT_SDA_PIN - 2, GPIO_FUNC_I2C);
     gpio_set_function(SAMWISE_MPPT_SCL_PIN - 2, GPIO_FUNC_I2C);
-    gpio_pull_up(SAMWISE_MPPT_SDA_PIN);
-    gpio_pull_up(SAMWISE_MPPT_SCL_PIN);
+    gpio_pull_up(SAMWISE_MPPT_SDA_PIN - 2);
+    gpio_pull_up(SAMWISE_MPPT_SCL_PIN - 2);
     return PICO_OK;
 }
 
