@@ -37,7 +37,7 @@ pico_sdk_init()
 
 # Get the TinyUSB config file for the RP2350 and put it into include
 #  git clone https://github.com/hathach/tinyusb.git
-add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c src/mppt.c)
+add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c src/mppt.c src/power.c)
 
 #  Comment this out if you're building for the PiCubed pinout breadboard
 add_compile_definitions(PICO)

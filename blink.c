@@ -29,6 +29,9 @@
 //MPPT charge controllers
 #include "mppt.h"
 
+//ADM1176 power monitor
+#include "power.h"
+
 // Pico W devices use a GPIO on the WIFI chip for the LED,
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
 #ifdef CYW43_WL_GPIO_LED_PIN
@@ -189,6 +192,7 @@ int main() {
     absolute_time_t previous_time_Power = get_absolute_time();     // ms
     uint32_t interval_Power = 1000000;
     char buffer_Power[buflen] = "";
+    float voltage, current;
 
 // BURN_WIRE
     absolute_time_t previous_time_BURN_WIRE = get_absolute_time();     // ms
@@ -393,8 +397,15 @@ int main() {
         // Time to Power?
         if (absolute_time_diff_us(previous_time_Power, get_absolute_time()) >= interval_Power) {
             // Save the last time you checked the power monitor
-            previous_time_Power = get_absolute_time();    
+            previous_time_Power = get_absolute_time();   
             sprintf(buffer_Power, "Power\n");
+            if (rc=init_power(i2c0) == 0) { 
+                do_power(i2c0, &voltage, &current); 
+                sprintf(buffer_Power + strlen(buffer_Power), "Voltage: %.2fV, Current: %.2fA\n", voltage, current);
+            } 
+            else {
+                sprintf(buffer_Power + strlen(buffer_Power), "Power monitor not found\n");
+            }   
         }
 
         // time to BURN_WIRE ?
