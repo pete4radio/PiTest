@@ -199,7 +199,7 @@ int main() {
     float voltage, current;
 
 //ADS7830 ADC
-    uint16_t adc_voltage = 0;
+    uint8_t adc_voltage = 0;
     absolute_time_t previous_time_ADC = get_absolute_time();     // ms
     uint32_t interval_ADC = 1000000;
     char buffer_ADC[buflen] = "";
@@ -402,9 +402,10 @@ int main() {
             previous_time_ADC = get_absolute_time();    
             sprintf(buffer_ADC, "ADC \n");
             if (rc=init_ADC(i2c0) == PICO_OK) { 
-                for (uint8_t channel = 0; channel < 6; channel++) { // loop through all channels
-                    read_ADC(i2c0, channel, &adc_voltage); 
-                    sprintf(buffer_ADC + strlen(buffer_ADC) - 1, "%d; \n", adc_voltage);
+                for (uint8_t channel = 0; channel < 8; channel++) { // loop through all channels
+                    if (read_ADC(i2c0, channel, &adc_voltage) == PICO_OK) {
+                        sprintf(buffer_ADC + strlen(buffer_ADC) - 1, "%d; \n", adc_voltage);
+                    } 
                 }
             } 
             else {

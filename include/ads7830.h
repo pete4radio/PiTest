@@ -8,4 +8,4 @@
 
 // Function prototypes
 uint8_t init_ADC(i2c_inst_t *i2c);
-uint8_t read_ADC(i2c_inst_t *i2c, uint8_t channel, uint16_t *adc_voltage);
+uint8_t read_ADC(i2c_inst_t *i2c, uint8_t channel, uint8_t *adc_voltage);
