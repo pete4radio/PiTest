@@ -156,7 +156,7 @@ int main() {
 
 //  Display
     absolute_time_t previous_time_Display = get_absolute_time();     // ms
-    uint32_t interval_Display = 1000000;
+    uint32_t interval_Display = 1010000;        // insure 1s period reports are fresh
     char buffer_Display[buflen] = "";
 
 //  RADIO_TX
@@ -274,8 +274,8 @@ int main() {
             printf(buffer_MPPT2);
             printf(buffer_Power);
             printf(buffer_ADC);
-            printf("%s\n", buffer_RADIO_RX);
             printf(buffer_RADIO_TX);
+            printf("%s\n", buffer_RADIO_RX);
             printf(buffer_UART);
             printf(buffer_UART2);
             printf(buffer_WDT);
@@ -404,8 +404,11 @@ int main() {
             if (rc=init_ADC(i2c0) == PICO_OK) { 
                 for (uint8_t channel = 0; channel < 8; channel++) { // loop through all channels
                     if (read_ADC(i2c0, channel, &adc_voltage) == PICO_OK) {
-                        sprintf(buffer_ADC + strlen(buffer_ADC) - 1, "%d; \n", adc_voltage);
+                        sprintf(buffer_ADC + strlen(buffer_ADC) - 1, "%3d; \n", adc_voltage);
                     } 
+                    else {
+                        sprintf(buffer_ADC + strlen(buffer_ADC) - 1, "ERR; \n");
+                    }   
                 }
             } 
             else {
