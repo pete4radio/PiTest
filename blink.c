@@ -32,6 +32,9 @@
 //ADM1176 power monitor
 #include "power.h"
 
+//ADS7830 ADC
+#include "ads7830.h"
+
 // Pico W devices use a GPIO on the WIFI chip for the LED,
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
 #ifdef CYW43_WL_GPIO_LED_PIN
@@ -148,7 +151,8 @@ int main() {
 //I2C Scan
     absolute_time_t previous_time_I2C = get_absolute_time();     // ms
     uint32_t interval_I2C = 1*1000*1000;  
-    char buffer_I2C[buflen] = "";
+    char buffer_I2C0[buflen] = "";
+    char buffer_I2C1[buflen] = "";
 
 //  Display
     absolute_time_t previous_time_Display = get_absolute_time();     // ms
@@ -194,6 +198,12 @@ int main() {
     char buffer_Power[buflen] = "";
     float voltage, current;
 
+//ADS7830 ADC
+    uint16_t adc_voltage = 0;
+    absolute_time_t previous_time_ADC = get_absolute_time();     // ms
+    uint32_t interval_ADC = 1000000;
+    char buffer_ADC[buflen] = "";
+
 // BURN_WIRE
     absolute_time_t previous_time_BURN_WIRE = get_absolute_time();     // ms
     uint32_t interval_BURN_WIRE = 1000000;
@@ -226,50 +236,27 @@ int main() {
             pico_set_led(false);
         }
 
-    // Time to I2C Scan?    
+// Time to I2C Scan?    
         if (absolute_time_diff_us(previous_time_I2C, get_absolute_time()) >= interval_I2C) {
             previous_time_I2C = get_absolute_time();    
-            printf("I2C0 Bus Scan\n");
-            printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
-
+            sprintf(buffer_I2C0, "I2C0: \n");
             int ret;
             uint8_t rxdata;
-            // Loop over addresses and see if there's an ACK.  This is fast, otherwise it 
-            // would be better to do this a frew addresses at a time.
             for (int addr = 0; addr < (1 << 7); ++addr) {
-                if (addr % 16 == 0) {
-                    printf("%02x ", addr);
-                }
-
-                if (reserved_addr(addr))
-                    ret = PICO_ERROR_GENERIC;
-                else
+                if (!reserved_addr(addr)) {
                     ret = i2c_read_blocking_until(i2c0, addr, &rxdata, 1, false, make_timeout_time_ms(10));
-
-                printf(ret < 0 ? "." : "@");
-                printf(addr % 16 == 15 ? "\n" : "  ");
+                    if (ret >= PICO_OK) { sprintf(buffer_I2C0 + strlen(buffer_I2C0) - 1, "0x%02x; \n", addr); }
+                    }
             }
       
-            printf("I2C1 Bus Scan\n");
-            printf("   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n");
-
-            // Loop over addresses and see if there's an ACK.  This is fast, otherwise it 
-            // would be better to do this a frew addresses at a time.
+            sprintf(buffer_I2C1, "I2C1: \n");
             for (int addr = 0; addr < (1 << 7); ++addr) {
-                if (addr % 16 == 0) {
-                    printf("%02x ", addr);
-                }
-
-                if (reserved_addr(addr))
-                    ret = PICO_ERROR_GENERIC;
-                else
+                if (!reserved_addr(addr)) {
                     ret = i2c_read_blocking_until(i2c1, addr, &rxdata, 1, false, make_timeout_time_ms(10));
-
-                printf(ret < 0 ? "." : "@");
-                printf(addr % 16 == 15 ? "\n" : "  ");
-            }
-        }   
-
+                        if (ret >= PICO_OK) { sprintf(buffer_I2C1 + strlen(buffer_I2C1) - 1, "0x%02x; \n", addr); }
+                    }
+            }   
+    }
 
         // Time to Display? 
         if (absolute_time_diff_us(previous_time_Display, get_absolute_time()) >= interval_Display) {
@@ -279,13 +266,14 @@ int main() {
             
             printf(buffer_BURN_WIRE);
             printf(buffer_COMMANDS);
-            printf(buffer_Display);
-            printf(buffer_I2C);
+            printf(buffer_I2C0);
+            printf(buffer_I2C1);
             printf(buffer_LED_OFF);
             printf(buffer_LED_ON);
             printf(buffer_MPPT1);
             printf(buffer_MPPT2);
             printf(buffer_Power);
+            printf(buffer_ADC);
             printf("%s\n", buffer_RADIO_RX);
             printf(buffer_RADIO_TX);
             printf(buffer_UART);
@@ -382,9 +370,9 @@ int main() {
         if (absolute_time_diff_us(previous_time_MPPT1, get_absolute_time()) >= interval_MPPT1) {
             // Save the last time you checked MPPT1
             previous_time_MPPT1 = get_absolute_time();
+            sprintf(buffer_MPPT1, "MPPT1 :\n");
             if (rc=init_mppt() == 0) { do_mppt(); } //  check if the mppt is initialized
-            printf("%d\n", rc);
-            sprintf(buffer_MPPT1, "MPPT1\n");
+            else { sprintf(buffer_MPPT1, "MPPT1 not found\n");}
         }
 
         // Time to MPPT2?
@@ -399,14 +387,31 @@ int main() {
             // Save the last time you checked the power monitor
             previous_time_Power = get_absolute_time();   
             sprintf(buffer_Power, "Power\n");
-            if (rc=init_power(i2c0) == 0) { 
+            if (rc=init_power(i2c0) == PICO_ERROR_GENERIC) { 
                 do_power(i2c0, &voltage, &current); 
-                sprintf(buffer_Power + strlen(buffer_Power), "Voltage: %.2fV, Current: %.2fA\n", voltage, current);
+                sprintf(buffer_Power + strlen(buffer_Power) - 1, " Voltage: %.2fV, Current: %.2fA\n", voltage, current);
             } 
             else {
-                sprintf(buffer_Power + strlen(buffer_Power), "Power monitor not found\n");
+                sprintf(buffer_Power + strlen(buffer_Power) -1, " monitor not found\n");
             }   
         }
+
+        // Time to ADC?
+        if (absolute_time_diff_us(previous_time_ADC, get_absolute_time()) >= interval_ADC) {
+            // Save the last time you checked the ADC
+            previous_time_ADC = get_absolute_time();    
+            sprintf(buffer_ADC, "ADC \n");
+            if (rc=init_ADC(i2c0) == PICO_OK) { 
+                for (uint8_t channel = 0; channel < 6; channel++) { // loop through all channels
+                    read_ADC(i2c0, channel, &adc_voltage); 
+                    sprintf(buffer_ADC + strlen(buffer_ADC) - 1, "%d; \n", adc_voltage);
+                }
+            } 
+            else {
+                sprintf(buffer_ADC + strlen(buffer_ADC) -1, " not found\n");
+            }   
+        }
+
 
         // time to BURN_WIRE ?
         if (absolute_time_diff_us(previous_time_BURN_WIRE, get_absolute_time()) >= interval_BURN_WIRE) {

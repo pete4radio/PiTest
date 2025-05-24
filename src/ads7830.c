@@ -1,6 +1,8 @@
 #include "ads7830.h"
 #include <stdio.h>
 
+#define I2C_TIMEOUT_MS 10
+
 // Channel selection for single-ended mode
 static const uint8_t CHANNEL_SELECTION[8] = {
     0x08, // SINGLE_CH0
