@@ -387,7 +387,7 @@ int main() {
             // Save the last time you checked the power monitor
             previous_time_Power = get_absolute_time();   
             sprintf(buffer_Power, "Power\n");
-            if (rc=init_power(i2c0) == PICO_ERROR_GENERIC) { 
+            if (rc=init_power(i2c0) != PICO_ERROR_GENERIC) {
                 do_power(i2c0, &voltage, &current); 
                 sprintf(buffer_Power + strlen(buffer_Power) - 1, " Voltage: %.2fV, Current: %.2fA\n", voltage, current);
             } 

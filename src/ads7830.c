@@ -48,7 +48,7 @@ uint8_t read_ADC(i2c_inst_t *i2c, uint8_t channel, uint8_t *adc_voltage) {
     if (write_result == PICO_ERROR_GENERIC || write_result == PICO_ERROR_TIMEOUT) {
         return PICO_ERROR_GENERIC; // Error during write
     }
-    sleep_ms(10); // Allow time for the ADC to settle
+    sleep_ms(1); // Allow time for the ADC to settle
     int read_result = i2c_read_blocking_until(i2c, ADS7830_I2C_ADDR, adc_voltage, 1, false, timeout);
     if (read_result == PICO_ERROR_GENERIC || read_result == PICO_ERROR_TIMEOUT) {
         return PICO_ERROR_GENERIC; // Error during read
