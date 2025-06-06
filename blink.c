@@ -41,6 +41,15 @@
 #include "pico/cyw43_arch.h"
 #endif
 
+#ifndef PICO
+// Ensure that PICO_RP2350A is defined to 0 for PICUBED builds.
+// boards/samwise_picubed.h should define it to 0.
+// The CMakeLists.txt file points to this file for the board definition.
+static_assert(PICO_RP2350A == 0,
+              "PICO_RP2350A must be defined to 0 for PICUBED builds.");
+#endif
+
+
 #define PIN_SDA 4
 #define PIN_SCL 5
 #define PIN_BURN_WIRE 6
