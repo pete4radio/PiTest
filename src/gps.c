@@ -16,7 +16,8 @@
 #define GPS_UART_TX_PIN 0
 #define GPS_UART_RX_PIN 1
 
-static char gps_buffer[GPS_BUFFER_SIZE];
+extern char buffer_UART, char buffer_GPS, int buflen;
+
 
 static double nmea_to_decimal(const char *nmea, char dir) {
     if (!nmea || !*nmea) return 0.0;
@@ -26,14 +27,6 @@ static double nmea_to_decimal(const char *nmea, char dir) {
     double dec = deg + min / 60.0;
     if (dir == 'S' || dir == 'W') dec = -dec;
     return dec;
-}
-
-uint8_t init_gps(void) {
-    uart_init(GPS_UART_ID, GPS_BAUDRATE);
-    gpio_set_function(GPS_UART_TX_PIN, GPIO_FUNC_UART);
-    gpio_set_function(GPS_UART_RX_PIN, GPIO_FUNC_UART);
-    if (!uart_is_enabled(GPS_UART_ID)) return PICO_ERROR_GENERIC;
-    return PICO_OK;
 }
 
 // Helper: parse int, returns 0 if empty or invalid

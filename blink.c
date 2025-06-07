@@ -191,6 +191,11 @@ int main() {
     uint32_t interval_UART2 = 1000000;
     char buffer_UART2[buflen] = "";
 
+// GPS
+    absolute_time_t previous_time_GPS = get_absolute_time();     // ms
+    uint32_t interval_GPS = 1000000;
+    char buffer_GPS[buflen] = "";
+
 // MPPT1
     absolute_time_t previous_time_MPPT1 = get_absolute_time();     // ms
     uint32_t interval_MPPT1 = 1000000;
@@ -287,6 +292,7 @@ int main() {
             printf("%s\n", buffer_RADIO_RX);
             printf(buffer_UART);
             printf(buffer_UART2);
+            printf(buffer_GPS);
             printf(buffer_WDT);
         }
 
@@ -364,8 +370,18 @@ int main() {
         // Time to UART?
         if (absolute_time_diff_us(previous_time_UART, get_absolute_time()) >= interval_UART) {
             // Save the last time you blinked checked UART loopback
-            previous_time_UART = get_absolute_time();    
-            sprintf(buffer_UART, "UART\n");
+            previous_time_UART = get_absolute_time();
+        //  First byte of buffer is zero until the interrupt routine provides a complete line
+            sprintf(buffer_UART, "");
+            if (init_UART() == PICO_OK) {
+                //  If we got a complete line, print it
+                if (buffer_UART[0] != '\0') {
+                    sprintf("UART: %s", buffer_UART);
+                }
+            } else {
+                sprintf(buffer_UART, "UART: not found\n");
+            }
+
         }   
 
         // Time to UART2?
@@ -373,6 +389,29 @@ int main() {
             // Save the last time you blinked checked UART2 loopback
             previous_time_UART2 = get_absolute_time();    
             sprintf(buffer_UART2, "UART2\n");
+        }
+
+        // Time to GPS?
+        if (absolute_time_diff_us(previous_time_GPS, get_absolute_time()) >= interval_GPS) {
+            // Save the last time you blinked checked GPS
+            previous_time_GPS = get_absolute_time();
+            //  Is there a line for us to decode?
+            if (buffer_UART[0] != '\0') {
+                do_gps(buffer_UART, gps_data);
+                buffer_UART[0] = '\0'; // Clear the UART buffer after processing
+                //  Print the GPS data  
+                if (gps_data->has_fix) {
+                    sprintf(buffer_GPS, "GPS Fix: %d, Lat: %.6f %c, Lon: %.6f %c, Alt: %.2f m, Speed: %.2f knots\n",
+                            gps_data->fix_quality,
+                            gps_data->latitude, gps_data->lat_dir,
+                            gps_data->longitude, gps_data->lon_dir,
+                            gps_data->altitude_m,
+                            gps_data->speed_knots);
+                } else {
+                    sprintf(buffer_GPS, "GPS No Fix\n");    
+            }
+        } else {
+            sprintf(buffer_GPS, "GPS\n");
         }
 
         // Time to MPPT1?
