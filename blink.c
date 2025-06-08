@@ -39,6 +39,8 @@
 #include "uart.h"
 #include "gps.h"
 #include "main_gps_uart_shared_buffer.h"
+char buffer_UART[BUFLEN] = {0}; // Define the buffer
+char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 
 // Pico W devices use a GPIO on the WIFI chip for the LED,
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
@@ -188,7 +190,8 @@ int main() {
 //  UART
     absolute_time_t previous_time_UART = get_absolute_time();     // ms     
     uint32_t interval_UART = 1000000;
-    char buffer_UART[BUFLEN] = "";
+    char buffer_UART[BUFLEN];
+    buffer_UART[0] = 0x00; //  Initialize the buffer to empty
 
 // UART2
     absolute_time_t previous_time_UART2 = get_absolute_time();     // ms
@@ -198,8 +201,13 @@ int main() {
 // GPS
     absolute_time_t previous_time_GPS = get_absolute_time();     // ms
     uint32_t interval_GPS = 1000000;
-    char buffer_GPS[BUFLEN] = "";
+    extern char buffer_GPS[BUFLEN];
+    buffer_GPS[0] = 0x00; //  Initialize the buffer to empty
     gps_data_t *gps_data = malloc(sizeof(gps_data_t));
+    if (!gps_data) {
+        printf("ERROR: Failed to allocate memory for gps_data\n");
+    }
+
 
 // MPPT1
     absolute_time_t previous_time_MPPT1 = get_absolute_time();     // ms
@@ -386,7 +394,6 @@ int main() {
             } else {
                 sprintf(buffer_UART, "UART: not found\n");
             }
-
         }   
 
         // Time to UART2?
@@ -401,9 +408,10 @@ int main() {
             // Save the last time you blinked checked GPS
             previous_time_GPS = get_absolute_time();
             //  Is there a line for us to decode?
-            if (buffer_UART[0] != '\0') {
+            if (buffer_UART[0] != '\0'  && (gps_data != NULL)) {
+                //  Decode the GPS data from the UART buffer
                 do_gps(buffer_UART, gps_data);
-                buffer_UART[0] = '\0'; // Clear the UART buffer after processing
+                buffer_UART[0] = '\0'; // Clear the UART buffer after processing to accept another GPS sentence
                 //  Print the GPS data  
                 if (gps_data->has_fix) {
                     sprintf(buffer_GPS, "GPS Fix: %d, Lat: %.6f %c, Lon: %.6f %c, Alt: %.2f m, Speed: %.2f knots\n",

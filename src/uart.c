@@ -17,7 +17,7 @@ void on_uart_rx() {
             }
             chars_rxed = 0; // reset for the next line
             return; // exit the handler
-        //  if the buffer still has the last string, drop the new one
+        //  if the buffer still has the last string, drop the new
         } else if (buffer_UART[0] != '\0') {
             return;
         }
