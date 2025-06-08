@@ -24,7 +24,9 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(PICO_BOARD MOTOR CACHE STRING "Board type")
+# Comment out the next line if you are building for a Pico breadboard
+set (PICO_PLATFORM RP2350 CACHE STRING "Platform Type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
