@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 #include "pico/time.h"
@@ -35,6 +36,10 @@
 //ADS7830 ADC
 #include "ads7830.h"
 
+#include "uart.h"
+#include "gps.h"
+#include "main_gps_uart_shared_buffer.h"
+
 // Pico W devices use a GPIO on the WIFI chip for the LED,
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
 #ifdef CYW43_WL_GPIO_LED_PIN
@@ -54,9 +59,8 @@ static_assert(PICO_RP2350A == 0,
 #define PIN_SCL 5
 #define PIN_BURN_WIRE 6
 
-#define buflen 60
-char command_buffer[buflen] = "";
-char response_buffer[buflen] = "";
+char command_buffer[BUFLEN] = "";
+char response_buffer[BUFLEN] = "";
 int p = 0;  // pointer to the command buffer
 int rfm96_init(spi_pins_t *spi_pins);   //declaration for init which lives in rfm96.c
 //  define storage and load them with values from pins.h
@@ -150,88 +154,89 @@ int main() {
 //  LED ON
     absolute_time_t previous_time_LED_ON = get_absolute_time();     // ms
     uint32_t interval_LED_ON = 7000000;
-    char buffer_LED_ON[buflen] = "";
+    char buffer_LED_ON[BUFLEN] = "";
 
 // LED OFF
     absolute_time_t previous_time_LED_OFF = get_absolute_time();     // ms
     uint32_t interval_LED_OFF = 500000;
-    char buffer_LED_OFF[buflen] = "";
+    char buffer_LED_OFF[BUFLEN] = "";
  
 //I2C Scan
     absolute_time_t previous_time_I2C = get_absolute_time();     // ms
     uint32_t interval_I2C = 1*1000*1000;  
-    char buffer_I2C0[buflen] = "";
-    char buffer_I2C1[buflen] = "";
+    char buffer_I2C0[BUFLEN] = "";
+    char buffer_I2C1[BUFLEN] = "";
 
 //  Display
     absolute_time_t previous_time_Display = get_absolute_time();     // ms
     uint32_t interval_Display = 1010000;        // insure 1s period reports are fresh
-    char buffer_Display[buflen] = "";
+    char buffer_Display[BUFLEN] = "";
 
 //  RADIO_TX
     absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_TX = 8*1000* 1000;                        // Give the radio time to RX
-    char buffer_RADIO_TX[buflen] = "";
+    char buffer_RADIO_TX[BUFLEN] = "";
     radio_initialized = rfm96_init(&spi_pins);
 
 //  RADIO_RX
     absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_RX = 1000000;
-    char buffer_RADIO_RX[buflen*2] = "";
+    char buffer_RADIO_RX[BUFLEN*2] = "";
     char packet[256];
     uint8_t nCRC = 0; // CRC error count
 
 //  UART
     absolute_time_t previous_time_UART = get_absolute_time();     // ms     
     uint32_t interval_UART = 1000000;
-    char buffer_UART[buflen] = "";
+    char buffer_UART[BUFLEN] = "";
 
 // UART2
     absolute_time_t previous_time_UART2 = get_absolute_time();     // ms
     uint32_t interval_UART2 = 1000000;
-    char buffer_UART2[buflen] = "";
+    char buffer_UART2[BUFLEN] = "";
 
 // GPS
     absolute_time_t previous_time_GPS = get_absolute_time();     // ms
     uint32_t interval_GPS = 1000000;
-    char buffer_GPS[buflen] = "";
+    char buffer_GPS[BUFLEN] = "";
+    gps_data_t *gps_data = malloc(sizeof(gps_data_t));
 
 // MPPT1
     absolute_time_t previous_time_MPPT1 = get_absolute_time();     // ms
     uint32_t interval_MPPT1 = 1000000;
-    char buffer_MPPT1[buflen] = "";
+    char buffer_MPPT1[BUFLEN] = "";
 
 // MPPT2
     absolute_time_t previous_time_MPPT2 = get_absolute_time();     // ms
     uint32_t interval_MPPT2 = 1000000;
-    char buffer_MPPT2[buflen] = "";
+    char buffer_MPPT2[BUFLEN] = "";
 
 // Power
     absolute_time_t previous_time_Power = get_absolute_time();     // ms
     uint32_t interval_Power = 1000000;
-    char buffer_Power[buflen] = "";
+    char buffer_Power[BUFLEN] = "";
     float voltage, current;
 
 //ADS7830 ADC
     uint8_t adc_voltage = 0;
     absolute_time_t previous_time_ADC = get_absolute_time();     // ms
     uint32_t interval_ADC = 1000000;
-    char buffer_ADC[buflen] = "";
+    char buffer_ADC[BUFLEN] = "";
 
 // BURN_WIRE
     absolute_time_t previous_time_BURN_WIRE = get_absolute_time();     // ms
     uint32_t interval_BURN_WIRE = 1000000;
-    char buffer_BURN_WIRE[buflen] = "";
+    char buffer_BURN_WIRE[BUFLEN] = "";
 
 // WDT
     absolute_time_t previous_time_WDT = get_absolute_time();     // ms      
     uint32_t interval_WDT = 1000000;
-    char buffer_WDT[buflen] = "";
+    char buffer_WDT[BUFLEN] = "";
 
 //  COMMANDS
     absolute_time_t previous_time_COMMANDS = get_absolute_time();     // ms
     uint32_t interval_COMMANDS = 1000000;
-    char buffer_COMMANDS[buflen] = "";
+    char buffer_COMMANDS[BUFLEN] = "";
 
     while (true) {
 
@@ -302,7 +307,7 @@ int main() {
 // if we got a packet, add it to the histogram
                 while (rfm96_rx_done()) { // If this is a TX burst, keep receiving them.
                     if (rfm96_crc_error()) {
-                        int remaining_space = buflen - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
+                        int remaining_space = BUFLEN - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
                         strncat(buffer_RADIO_RX, " CRC error", remaining_space); // Safely append a newline
                         break;  //  CRC error, so ignore it
                     }
@@ -324,7 +329,7 @@ int main() {
                     }
                 }
 // Print the power histogram into buffer_RADIO_RX
-                    int remaining_space = buflen*2 - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
+                    int remaining_space = BUFLEN*2 - strlen(buffer_RADIO_RX) - 1; // Calculate remaining space in the buffer
                     for (int i = 0; (i < 20) && (remaining_space > 0); i++) {
                         int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), remaining_space, "%d ", power_histogram[i]);
                         if (written < 0 || written >= remaining_space) {
@@ -373,7 +378,7 @@ int main() {
             previous_time_UART = get_absolute_time();
         //  First byte of buffer is zero until the interrupt routine provides a complete line
             sprintf(buffer_UART, "");
-            if (init_UART() == PICO_OK) {
+            if (init_uart() == PICO_OK) {
                 //  If we got a complete line, print it
                 if (buffer_UART[0] != '\0') {
                     sprintf("UART: %s", buffer_UART);
@@ -409,9 +414,10 @@ int main() {
                             gps_data->speed_knots);
                 } else {
                     sprintf(buffer_GPS, "GPS No Fix\n");    
+                }
+            } else {
+                sprintf(buffer_GPS, "GPS\n");
             }
-        } else {
-            sprintf(buffer_GPS, "GPS\n");
         }
 
         // Time to MPPT1?

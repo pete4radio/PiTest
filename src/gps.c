@@ -1,9 +1,3 @@
-// # SPDX-FileCopyrightText: 2017 Tony DiCola for Adafruit Industries
-// # SPDX-FileCopyrightText: 2021 James Carr
-// #
-// # SPDX-License-Identifier: MIT
-
-#include "gps.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -11,13 +5,13 @@
 #include "hardware/uart.h"
 #include "pico/stdlib.h"
 
+#include "gps.h"
+#include "main_gps_uart_shared_buffer.h"
+
 #define GPS_UART_ID uart0
 #define GPS_BAUDRATE 9600
 #define GPS_UART_TX_PIN 0
 #define GPS_UART_RX_PIN 1
-
-extern char buffer_UART, char buffer_GPS, int buflen;
-
 
 static double nmea_to_decimal(const char *nmea, char dir) {
     if (!nmea || !*nmea) return 0.0;

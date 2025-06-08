@@ -26,6 +26,8 @@ typedef struct {
     // Satellites
     int satellites;
     double hdop;
+    double pdop;
+    double vdop;
     double altitude_m;
     double geoid_height;
 

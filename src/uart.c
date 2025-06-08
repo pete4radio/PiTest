@@ -1,20 +1,8 @@
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
 #include "hardware/irq.h"
-
-#define UART_ID uart0
-#define BAUD_RATE 115200
-#define DATA_BITS 8
-#define STOP_BITS 1
-#define PARITY    UART_PARITY_NONE
-
-// For the ADCS board, Pins 1 & 2 are GPIO 2 and 3, and are UART0 and function 11
-
-#define UART_TX_PIN 2
-#define UART_RX_PIN 3
-
-extern char buffer_UART;
-extern int buflen;
+#include "uart.h"
+#include "main_gps_uart_shared_buffer.h"
 
 static int chars_rxed = 0;
 
@@ -24,7 +12,7 @@ void on_uart_rx() {
         uint8_t ch = uart_getc(UART_ID);
         // If we have received a newline character, stop reading, terminate and return
         if (ch == '\n' || ch == '\r') {
-            if (chars_rxed < buflen) {
+            if (chars_rxed < BUFLEN) {
                 buffer_UART[chars_rxed] = '\0'; // null terminate the string
             }
             chars_rxed = 0; // reset for the next line
@@ -34,7 +22,7 @@ void on_uart_rx() {
             return;
         }
         // put it into buffer_UART
-        if (chars_rxed < buflen - 1) { // leave space for null terminator
+        if (chars_rxed < BUFLEN - 1) { // leave space for null terminator
             buffer_UART[chars_rxed] = ch;
             chars_rxed++;
             buffer_UART[chars_rxed] = '\0'; // null terminate the string
