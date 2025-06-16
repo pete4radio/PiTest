@@ -49,11 +49,13 @@ char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 #endif
 
 #ifndef PICO
-// Ensure that PICO_RP2350A is defined to 0 for PICUBED builds.
-// boards/samwise_picubed.h should define it to 0.
+// Ensure that PICO_RP2350A is undefined PICUBED builds.
+// boards/samwise_picubed.h or P3_6b.h should undefine it.
 // The CMakeLists.txt file points to this file for the board definition.
-static_assert(PICO_RP2350A == 0,
-              "PICO_RP2350A must be defined to 0 for PICUBED builds.");
+//Check the pin is compatible with the platform
+#if 44 >= NUM_BANK0_GPIOS
+    #error "Recompile specifying the RP2350B platform SAMWISE"
+    #endif
 #endif
 
 

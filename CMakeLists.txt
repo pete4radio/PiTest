@@ -24,9 +24,9 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD MOTOR CACHE STRING "Board type")
+set(PICO_BOARD P3_6b CACHE STRING "Board type")
 # Comment out the next line if you are building for a Pico breadboard
-set (PICO_PLATFORM RP2350 CACHE STRING "Platform Type")
+set (PICO_PLATFORM rp2350 CACHE STRING "Platform Type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -43,7 +43,7 @@ add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c src/mppt.c src/
     src/ads7830.c src/gps.c src/uart.c)
 
 #  Comment this out if you're building for the PiCubed pinout breadboard
-add_compile_definitions(PICO)
+#add_compile_definitions(PICO)
 
 target_include_directories(${PROJECT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi hardware_uart 
@@ -58,4 +58,4 @@ pico_add_extra_outputs(${PROJECT})
 
 # open serial port
 #pico_enable_stdio_uart(${PROJECT} 1)
-#pico_enable_stdio_usb(${PROJECT} 1)
+pico_enable_stdio_usb(${PROJECT} 1)
