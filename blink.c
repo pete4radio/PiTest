@@ -14,7 +14,7 @@
 #include "hardware/irq.h"
 #include "hardware/spi.h"
 #include "pins.h"
-#include "tusb.h"
+//#include "tusb.h"
 
 // from logger.h
 #include "pico/printf.h"
@@ -150,7 +150,7 @@ int main() {
     stdio_init_all();
     //  see https://forums.raspberrypi.com/viewtopic.php?t=300136
     int i = 100;
-    while (!tud_cdc_connected() && i--) { sleep_ms(100);  }
+    while (!stdio_usb_connected() && i--) { sleep_ms(100);  }
     printf("USB_connected or timed out\n");
 
 //  Initialize the variables for each test 
