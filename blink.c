@@ -1,3 +1,5 @@
+
+
 /**
  * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
  *
@@ -48,15 +50,15 @@ char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 #include "pico/cyw43_arch.h"
 #endif
 
-#ifndef PICO
+//#ifndef PICO
 // Ensure that PICO_RP2350A is undefined PICUBED builds.
 // boards/samwise_picubed.h or P3_6b.h should undefine it.
 // The CMakeLists.txt file points to this file for the board definition.
 //Check the pin is compatible with the platform
-#if 44 >= NUM_BANK0_GPIOS
-    #error "Recompile specifying the RP2350B platform SAMWISE"
-    #endif
-#endif
+//#if 44 >= NUM_BANK0_GPIOS
+//   #error "Recompile specifying the RP2350B platform SAMWISE"
+//    #endif
+//#endif
 
 
 #define PIN_SDA 4
@@ -178,7 +180,7 @@ int main() {
 
 //  RADIO_TX
     absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms        
-    uint32_t interval_RADIO_TX = 8*1000* 1000;                        // Give the radio time to RX
+    uint32_t interval_RADIO_TX = 2*1010* 1000;                        // Give the radio time to RX
     char buffer_RADIO_TX[BUFLEN] = "";
     radio_initialized = rfm96_init(&spi_pins);
 
@@ -370,10 +372,10 @@ int main() {
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_transmit();  //  Send the packet
                     red();  //  Indicate we are transmitting
-                    sleep_ms(30);  //  give the radio time to TX before "are we there yet?"
+                    //sleep_ms(30);  //  give the radio time to TX before "are we there yet?"
 
-                    int i = 10;
-                    while (!rfm96_tx_done() && i--) { sleep_ms(100);  }
+                    int i = 10000;
+                    while (!rfm96_tx_done() && i--) { sleep_us(10);  }
                     if (!rfm96_tx_done()) printf("main: TX timed out\n");
                 }
                 rfm96_listen(); //  Set the radio to RX mode
@@ -493,7 +495,10 @@ int main() {
         if (absolute_time_diff_us(previous_time_WDT, get_absolute_time()) >= interval_WDT) {
             // Save the last time you fed the Watchdog
             previous_time_WDT = get_absolute_time();    
-            sprintf(buffer_WDT, "WDT\n");
+            sprintf(buffer_WDT, "WDT fed\n");
+            gpio_put(SAMWISE_WATCHDOG_FEED_PIN, 1);  // Set the WDT pin high
+            sleep_ms(1);           // Wait for 1 ms
+            gpio_put(SAMWISE_WATCHDOG_FEED_PIN, 0);  // Set the WDT pin low   
         }
 
         // Time to COMMANDS?
@@ -501,7 +506,7 @@ int main() {
             // Save the last time you checked for COMMANDS
             previous_time_COMMANDS = get_absolute_time();  
         // is there a character in the serial input buffer?  get it without waiting
-        int temp = getchar_timeout_us(0);
+        int temp = getchar_timeout_us(100);
             if (p > 0 && temp == PICO_ERROR_TIMEOUT) {  // We've got a command, which come in bursts
                 command_buffer[p++] = '\0';    // Null terminate the command buffer
                 p = 0;                      // Reset the pointer    

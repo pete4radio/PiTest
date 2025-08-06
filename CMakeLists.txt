@@ -24,7 +24,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD P3_6b CACHE STRING "Board type")
+set(PICO_BOARD SAMWISE CACHE STRING "Board type")
 # Comment out the next line if you are building for a Pico breadboard
 set (PICO_PLATFORM rp2350 CACHE STRING "Platform Type")
 
