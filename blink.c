@@ -314,7 +314,7 @@ int main() {
         }
 
 // It's always time to check for received packets. (RADIO_RX)    
-            sprintf(buffer_RADIO_RX, "RX ");     //clears out the results buffer
+            sprintf(buffer_RADIO_RX, "RXB ");     //Blocking; clears out the results buffer
             if (radio_initialized) {
 // if we got a packet, add it to the histogram
                 while (rfm96_rx_done()) { // If this is a TX burst, keep receiving them.
@@ -356,7 +356,7 @@ int main() {
             }
 
 //
-        sprintf(buffer_RADIO_TX, "RADIO_TX\n");
+        sprintf(buffer_RADIO_TX, "RADIO_TXB\n");  //Blocking
 // Time to RADIO_TX?
          if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
 // Save the last time you (tried to) TX on the RADIO
