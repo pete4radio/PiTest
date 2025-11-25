@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
+#include "hardware/dma.h"
 #include "pins.h"
 
 // Strategy differs from flight software.   Check only  the radio functionality & do range test:
@@ -18,11 +19,20 @@
     spi_inst_t *global_spi = spi1;
 #endif
 
+// DMA channels for SPI transfers
+static int tx_dma_chan = -1;
+static int rx_dma_chan = -1;
+
+// Timeout for DMA transfers in microseconds (20ms)
+#define DMA_TIMEOUT_US 20000
+
 #define DEBUG 0
 
 /*******************************************************************************
  * Function Declarations
  */
+int dma_wait_with_timeout(int channel);
+
 void reg_write(const uint8_t reg, const uint8_t data);
 
 int reg_read(const uint8_t reg, uint8_t *buf, uint8_t nbytes);
@@ -35,18 +45,47 @@ int rfm96_init(spi_pins_t *spi_pins);
 * Function Definitions
 */
 
+// Wait for DMA channel to complete with timeout
+// Returns 0 on success, -1 on timeout
+int dma_wait_with_timeout(int channel) {
+    uint64_t start_time = time_us_64();
+
+    while (dma_channel_is_busy(channel)) {
+        uint64_t elapsed = time_us_64() - start_time;
+        if (elapsed > DMA_TIMEOUT_US) {
+            // Timeout occurred - abort the DMA transfer
+            dma_channel_abort(channel);
+            printf("DMA timeout on channel %d after %llu us\n", channel, elapsed);
+            return -1;
+        }
+        // Small delay to avoid busy-waiting too aggressively
+        tight_loop_contents();
+    }
+
+    return 0;
+}
+
 // Write 1 byte to the specified register
 void reg_write(const uint8_t reg, const uint8_t data) {
 
     uint8_t msg[2];    // Need two bytes as we need to clock out the address and the data
-        
+
     // Construct message (set ~W bit low, MB bit low)
     msg[0] = 0x00 | reg;
     msg[1] = data;
 
-    // CS is active low:  Write to register
+    // CS is active low:  Write to register using DMA
     gpio_put(SAMWISE_RF_CS_PIN, 0);
-    spi_write_blocking(global_spi, msg, 2);
+
+    // Setup and start DMA transfer
+    dma_channel_set_read_addr(tx_dma_chan, msg, false);
+    dma_channel_set_trans_count(tx_dma_chan, 2, true);  // Start transfer
+
+    // Wait for completion with timeout
+    if (dma_wait_with_timeout(tx_dma_chan) != 0) {
+        printf("reg_write: DMA timeout writing to register 0x%02x\n", reg);
+    }
+
     gpio_put(SAMWISE_RF_CS_PIN, 1);
 }
 
@@ -59,23 +98,68 @@ int reg_read(const uint8_t reg, uint8_t *buf, const uint8_t nbytes) {
 
     // Determine if multiple byte (MB) bit should be set
     if (nbytes < 1) {
-    return -1;
+        return -1;
     } else if (nbytes == 1) {
-    mb = 0;
+        mb = 0;
     } else {
-    mb = 1;
+        mb = 1;
     }
 
     // Construct message (set ~W bit high)
     uint8_t msg = 0x80 | (mb << 6) | reg;
 
-    // Read from register
+    // Read from register using DMA
     gpio_put(SAMWISE_RF_CS_PIN, 0);
-    spi_write_blocking(global_spi, &msg, 1);
-    num_bytes_read = spi_read_blocking(global_spi, 0, buf, nbytes);
+
+    // First, send the command byte
+    dma_channel_set_read_addr(tx_dma_chan, &msg, false);
+    dma_channel_set_trans_count(tx_dma_chan, 1, true);  // Start transfer
+
+    if (dma_wait_with_timeout(tx_dma_chan) != 0) {
+        printf("reg_read: DMA timeout writing command to register 0x%02x\n", reg);
+        gpio_put(SAMWISE_RF_CS_PIN, 1);
+        return -1;
+    }
+
+    // For reading, we need to send dummy bytes (0x00) to clock in the data
+    // Setup both TX (dummy bytes) and RX (actual data) simultaneously
+    static uint8_t dummy = 0x00;
+
+    // Setup TX DMA to send dummy bytes (same address, no increment)
+    dma_channel_config tx_cfg = dma_channel_get_default_config(tx_dma_chan);
+    channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
+    channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
+    channel_config_set_read_increment(&tx_cfg, false);  // Don't increment (same dummy byte)
+    channel_config_set_write_increment(&tx_cfg, false);
+    dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
+                         &dummy, nbytes, false);
+
+    // Setup RX DMA to receive data
+    dma_channel_set_write_addr(rx_dma_chan, buf, false);
+    dma_channel_set_trans_count(rx_dma_chan, nbytes, false);
+
+    // Start both channels
+    dma_start_channel_mask((1u << tx_dma_chan) | (1u << rx_dma_chan));
+
+    // Wait for both to complete
+    if (dma_wait_with_timeout(tx_dma_chan) != 0 || dma_wait_with_timeout(rx_dma_chan) != 0) {
+        printf("reg_read: DMA timeout reading from register 0x%02x\n", reg);
+        gpio_put(SAMWISE_RF_CS_PIN, 1);
+        return -1;
+    }
+
     gpio_put(SAMWISE_RF_CS_PIN, 1);
 
-    return num_bytes_read;
+    // Restore TX DMA config for normal writes (with read increment)
+    tx_cfg = dma_channel_get_default_config(tx_dma_chan);
+    channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
+    channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
+    channel_config_set_read_increment(&tx_cfg, true);
+    channel_config_set_write_increment(&tx_cfg, false);
+    dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
+                         NULL, 0, false);
+
+    return nbytes;
 }
 
 /*
@@ -107,19 +191,58 @@ void cs_deselect()
 void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
  {
      cs_select();
- 
+
      // First, configure that we will be GETTING from the Radio Module.
      uint8_t value = reg & 0x7F;
- 
+
      // WRITES to the radio module the value, of length 1 byte, that says that we
-     // are GETTING
-     spi_write_blocking(global_spi, &value, 1);
- 
-     // GETS from the radio module the buffer.
+     // are GETTING (using DMA)
+     dma_channel_set_read_addr(tx_dma_chan, &value, false);
+     dma_channel_set_trans_count(tx_dma_chan, 1, true);  // Start transfer
+
+     if (dma_wait_with_timeout(tx_dma_chan) != 0) {
+         printf("rfm96_get_buf: DMA timeout writing command\n");
+         cs_deselect();
+         return;
+     }
+
+     // GETS from the radio module the buffer using DMA
      // The 0 represents the arbitrary byte that should be passed IN as part of
      // the SPI shared clock.
-     spi_read_blocking(global_spi, 0, buf, n);
- 
+     static uint8_t dummy = 0x00;
+
+     // Setup TX DMA to send dummy bytes (same address, no increment)
+     dma_channel_config tx_cfg = dma_channel_get_default_config(tx_dma_chan);
+     channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
+     channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
+     channel_config_set_read_increment(&tx_cfg, false);  // Don't increment
+     channel_config_set_write_increment(&tx_cfg, false);
+     dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
+                          &dummy, n, false);
+
+     // Setup RX DMA to receive data
+     dma_channel_set_write_addr(rx_dma_chan, buf, false);
+     dma_channel_set_trans_count(rx_dma_chan, n, false);
+
+     // Start both channels
+     dma_start_channel_mask((1u << tx_dma_chan) | (1u << rx_dma_chan));
+
+     // Wait for both to complete
+     if (dma_wait_with_timeout(tx_dma_chan) != 0 || dma_wait_with_timeout(rx_dma_chan) != 0) {
+         printf("rfm96_get_buf: DMA timeout reading buffer\n");
+         cs_deselect();
+         return;
+     }
+
+     // Restore TX DMA config for normal writes (with read increment)
+     tx_cfg = dma_channel_get_default_config(tx_dma_chan);
+     channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
+     channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
+     channel_config_set_read_increment(&tx_cfg, true);
+     channel_config_set_write_increment(&tx_cfg, false);
+     dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
+                          NULL, 0, false);
+
      cs_deselect();
  }
  
@@ -129,15 +252,30 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
   void rfm96_put_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
  {
      cs_select();
- 
+
      // this value will be passed in to tell the radio that we will be writing data
      uint8_t value = reg | 0x80;
- 
-     spi_write_blocking(global_spi, &value, 1);
- 
-     // Write the buffer to the radio
-     spi_write_blocking(global_spi, buf, n);
- 
+
+     // Send command byte using DMA
+     dma_channel_set_read_addr(tx_dma_chan, &value, false);
+     dma_channel_set_trans_count(tx_dma_chan, 1, true);  // Start transfer
+
+     if (dma_wait_with_timeout(tx_dma_chan) != 0) {
+         printf("rfm96_put_buf: DMA timeout writing command\n");
+         cs_deselect();
+         return;
+     }
+
+     // Write the buffer to the radio using DMA
+     dma_channel_set_read_addr(tx_dma_chan, buf, false);
+     dma_channel_set_trans_count(tx_dma_chan, n, true);  // Start transfer
+
+     if (dma_wait_with_timeout(tx_dma_chan) != 0) {
+         printf("rfm96_put_buf: DMA timeout writing buffer\n");
+         cs_deselect();
+         return;
+     }
+
      cs_deselect();
  }
  
@@ -741,6 +879,42 @@ uint8_t rfm96_get_mode()
     // Set SPI bus details --RFM9X.pdf 4.3 p75: CPOL = 0, CPHA = 0 (mode 0) MSB first
     // This is also the pico-sdk default:spi_set_format(8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
     spi_set_format(global_spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+
+    // Initialize DMA channels for SPI
+    tx_dma_chan = dma_claim_unused_channel(true);
+    rx_dma_chan = dma_claim_unused_channel(true);
+
+    // Configure TX DMA: memory -> SPI TX FIFO
+    dma_channel_config tx_config = dma_channel_get_default_config(tx_dma_chan);
+    channel_config_set_transfer_data_size(&tx_config, DMA_SIZE_8);
+    channel_config_set_dreq(&tx_config, spi_get_dreq(global_spi, true));
+    channel_config_set_read_increment(&tx_config, true);
+    channel_config_set_write_increment(&tx_config, false);
+    dma_channel_configure(
+        tx_dma_chan,
+        &tx_config,
+        &spi_get_hw(global_spi)->dr,  // Write to SPI TX FIFO
+        NULL,                          // Read address set per transfer
+        0,                             // Transfer count set per transfer
+        false                          // Don't start yet
+    );
+
+    // Configure RX DMA: SPI RX FIFO -> memory
+    dma_channel_config rx_config = dma_channel_get_default_config(rx_dma_chan);
+    channel_config_set_transfer_data_size(&rx_config, DMA_SIZE_8);
+    channel_config_set_dreq(&rx_config, spi_get_dreq(global_spi, false));
+    channel_config_set_read_increment(&rx_config, false);
+    channel_config_set_write_increment(&rx_config, true);
+    dma_channel_configure(
+        rx_dma_chan,
+        &rx_config,
+        NULL,                          // Write address set per transfer
+        &spi_get_hw(global_spi)->dr,  // Read from SPI RX FIFO
+        0,                             // Transfer count set per transfer
+        false                          // Don't start yet
+    );
+
+    printf("DMA channels initialized: TX=%d, RX=%d\n", tx_dma_chan, rx_dma_chan);
 
     // 0x42 is the Chip ID register and the value returned should be 0x11
     uint8_t v = 0;

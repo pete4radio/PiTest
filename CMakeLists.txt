@@ -16,9 +16,9 @@ if(WIN32)
 else()
     set(USERHOME $ENV{HOME})
 endif()
-set(sdkVersion 2.1.1)
+set(sdkVersion 2.2.0)
 set(toolchainVersion 14_2_Rel1)
-set(picotoolVersion 2.1.1)
+set(picotoolVersion 2.2.0-a4)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
@@ -47,7 +47,7 @@ add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c src/mppt.c src/
 
 target_include_directories(${PROJECT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi hardware_uart 
-    hardware_gpio
+    hardware_gpio hardware_dma
 #    tinyusb_device tinyusb_board
     hardware_pio)
 
