@@ -9,7 +9,7 @@
 // at lowest level routines and it's clumsy to pass it around.  Use SAMWISE_RF_CS_PIN.
 //   o  pass by value (except buffers) to avoid corruption and nasty bugs later (this code needs
 // to be easy to use and modify).
-//   o  No interrupts because when we're doing the radio, we're not doing anything else.
+//   o  Non-blocking calls with timeout for DMA transfers to avoid hangs.
 //   o  For our purposes, a packet is a received transmission (no src and dest)
 // 
 
@@ -18,6 +18,8 @@
 #else
     spi_inst_t *global_spi = spi1;
 #endif
+
+#define DMA_DEBUG 0
 
 // DMA channels for SPI transfers
 static int tx_dma_chan = -1;
@@ -55,7 +57,10 @@ int dma_wait_with_timeout(int channel) {
         if (elapsed > DMA_TIMEOUT_US) {
             // Timeout occurred - abort the DMA transfer
             dma_channel_abort(channel);
+
+#if DMA_DEBUG
             printf("DMA timeout on channel %d after %llu us\n", channel, elapsed);
+#endif
             return -1;
         }
         // Small delay to avoid busy-waiting too aggressively
@@ -145,12 +150,18 @@ int reg_read(const uint8_t reg, uint8_t *buf, const uint8_t nbytes) {
     uint32_t drained_before_data = 0;
     while (spi_is_readable(global_spi)) {
         uint32_t drained_byte = spi_get_hw(global_spi)->dr;
+
+#if DMA_DEBUG
         printf("reg_read: Draining byte 0x%02x from RX FIFO\n", drained_byte);
+#endif
         drained_before_data++;
     }
+
+#if DMA_DEBUG
     if (drained_before_data > 0) {
         printf("reg_read: Drained %lu bytes before data phase\n", drained_before_data);
     }
+#endif
 
     // For reading, we need to send dummy bytes (0x00) to clock in the data
     // Setup both TX (dummy bytes) and RX (actual data) simultaneously
@@ -224,8 +235,9 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
 
      // First, configure that we will be GETTING from the Radio Module.
      uint8_t read_cmd = reg & 0x7F;  // A wnr bit, which is 1 for write access and 0 for read access.
+#if DMA_DEBUG  
      printf("rfm96_get_buf: Reading reg=0x%02x, cmd=0x%02x, n=%lu\n", reg, read_cmd, n);
-
+#endif
      // WRITES to the radio module the read_cmd, of length 1 byte, that says that we
      // are GETTING (using DMA)
      dma_channel_set_read_addr(tx_dma_chan, &read_cmd, false);
@@ -242,10 +254,16 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
      uint32_t drained_before_data = 0;
      while (spi_is_readable(global_spi)) {
          uint8_t drained_byte = (uint8_t)spi_get_hw(global_spi)->dr;
+
+#if DMA_DEBUG
          printf("rfm96_get_buf: Draining byte 0x%02x from RX FIFO\n", drained_byte);
+#endif
+
          drained_before_data++;
      }
+#if DMA_DEBUG
      printf("rfm96_get_buf: Drained %lu bytes before data phase\n", drained_before_data);
+#endif
 
      // GETS from the radio module the buffer using DMA
      // The 0 represents the arbitrary byte that should be passed IN as part of
@@ -270,7 +288,7 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
      dma_channel_configure(rx_dma_chan, &rx_cfg,
                           buf,                           // Write to buffer
                           &spi_get_hw(global_spi)->dr,  // Read from SPI RX FIFO
-                          n,                             // Transfer count
+                          n + 1,                        // Transfer count; include the command byte
                           false);                        // Don't start yet
 
      // Start both channels
@@ -282,8 +300,10 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
          cs_deselect();
          return;
      }
-
+     buf[0] = buf[1];  // Shift data down to start of buffer
+#if DMA_DEBUG
      printf("rfm96_get_buf: After DMA, buf[0]=0x%02x\n", buf[0]);
+#endif
 
      cs_deselect();
  }
@@ -297,7 +317,9 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
 
      // this value will be passed in to tell the radio that we will be writing data
      uint8_t value = reg | 0x80;  // A wnr bit, which is 1 for write access and 0 for read access.
+#if DMA_DEBUG
      printf("rfm96_put_buf: Writing reg=0x%02x, cmd=0x%02x, n=%lu, data[0]=0x%02x\n", reg, value, n, buf[0]);
+#endif
 
      // Ensure TX DMA is configured for writes (read_increment = true)
      dma_channel_config tx_cfg = dma_channel_get_default_config(tx_dma_chan);
@@ -332,9 +354,11 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
 
      // Drain the SPI RX FIFO after write to prevent stale data
      // affecting subsequent reads (SPI is full-duplex)
-     printf("rfm96_put_buf: Before drain, SPI readable=%d, RX DMA busy=%d\n",
-            spi_is_readable(global_spi), dma_channel_is_busy(rx_dma_chan));
-
+#if DMA_DEBUG
+            printf("rfm96_put_buf: Before drain, SPI readable=%d, RX DMA busy=%d\n",
+                    spi_is_readable(global_spi),
+                    dma_channel_is_busy(rx_dma_chan));
+#endif
      uint32_t drained = 0;
      // Read back the (1 + n) bytes (command + data) that were echoed
      for (uint32_t i = 0; i < (1 + n); i++) {
@@ -347,10 +371,14 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
              printf("rfm96_put_buf: FIFO drain timeout at byte %lu\n", i);
              break;
          }
+#if DMA_DEBUG
          printf("rfm96_put_buf: Draining byte 0x%02x from RX FIFO\n", spi_get_hw(global_spi)->dr);
+#endif
          drained++;
      }
+#if DMA_DEBUG
      printf("rfm96_put_buf: Drained %lu bytes\n", drained);
+#endif
  }
  
  /*
