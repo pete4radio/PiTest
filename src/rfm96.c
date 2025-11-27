@@ -745,7 +745,7 @@ uint8_t rfm96_get_mode()
     // 0x42 is the Chip ID register and the value returned should be 0x11
     uint8_t v = 0;
     printf((reg_read(0x42, &v, 1) == 1) ? "RFM9X Chip ID read success\n" : "RFM9X Chip ID read failed\n");
-    printf((v != 0x11) ? "RFM9X version check success\n" : "RFM9X version 0x11 check failed, returned %02x\n", v);
+    printf((v == 0x12) ? "RFM9X version check success\n" : "RFM9X version check failed, expected 0x12 but got %02x\n", v);
 
     // Setup busy line, which signals when RX packet received or TX packet sent
      gpio_init(SAMWISE_RF_D0_PIN);

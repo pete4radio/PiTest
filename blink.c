@@ -356,7 +356,8 @@ int main() {
 //
         sprintf(buffer_RADIO_TX, "RADIO_TX\n");
 // Time to RADIO_TX?
-         if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
+//         while (0)        //  Disable RADIO TX for testing
+         {if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
 // Save the last time you (tried to) TX on the RADIO
             previous_time_RADIO_TX = get_absolute_time();    
             if (radio_initialized == 0) { //check each time so radio can be hot swapped in.
@@ -376,10 +377,11 @@ int main() {
                     while (!rfm96_tx_done() && i--) { sleep_ms(100);  }
                     if (!rfm96_tx_done()) printf("main: TX timed out\n");
                 }
+                sleep_ms(321); //  Give the radio time to TX before we go back to RX
                 rfm96_listen(); //  Set the radio to RX mode
                 green();    //  Indicate we are receiving
                 sprintf(buffer_RADIO_TX, "RADIO_TX packets sent\n"); 
-        }
+        }}
     }
 
         // Time to UART?
@@ -492,8 +494,15 @@ int main() {
         // Time to WDT? 
         if (absolute_time_diff_us(previous_time_WDT, get_absolute_time()) >= interval_WDT) {
             // Save the last time you fed the Watchdog
-            previous_time_WDT = get_absolute_time();    
+            previous_time_WDT = get_absolute_time(); 
+            gpio_put(SAMWISE_WATCHDOG_FEED_PIN, 0);   
+            //wait 10 ms
+            sleep_ms(10);
+            gpio_put(SAMWISE_WATCHDOG_FEED_PIN, 1);
+            sleep_ms(10);
+            gpio_put(SAMWISE_WATCHDOG_FEED_PIN, 0);
             sprintf(buffer_WDT, "WDT\n");
+
         }
 
         // Time to COMMANDS?
