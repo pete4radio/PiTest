@@ -188,7 +188,7 @@ int main() {
     absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms        
     uint32_t interval_RADIO_RX = 1000000;
     char buffer_RADIO_RX[BUFLEN*2] = "";
-    char packet[256];
+    char packet[256];  // room for incoming packet and dummy byte
     uint8_t nCRC = 0; // CRC error count
 
 //  UART

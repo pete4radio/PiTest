@@ -388,12 +388,12 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
   
  /*
   * Get a single byte from an RFM9X register
-  */
+  * v has two bytes to give room for the dummy byte*/
 uint8_t rfm96_get8(rfm96_reg_t reg)
  {
-     uint8_t v = 0;
-     rfm96_get_buf(reg, &v, 1);
-     return v;
+     uint8_t v[2] = {0};
+     rfm96_get_buf(reg, v, 1);
+     return v[1];
  }
  
  void rfm96_reset()
@@ -1074,6 +1074,7 @@ uint8_t rfm96_get_mode()
       * Configure tranceiver properties
       */
      rfm96_set_frequency(RFM96_FREQUENCY); /* Always */
+     ASSERT(rfm96_get_frequency() == RFM96_FREQUENCY);
  
      rfm96_set_preamble_length(8); /* 8 bytes matches Radiohead library */
      ASSERT(rfm96_get_preamble_length() == 8);
