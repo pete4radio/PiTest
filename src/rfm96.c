@@ -145,50 +145,29 @@ int reg_read(const uint8_t reg, uint8_t *buf, const uint8_t nbytes) {
         return -1;
     }
 
-    // CRITICAL: Completely drain RX FIFO before data phase
-    // Discard command response AND any stale data from previous operations
-    uint32_t drained_before_data = 0;
-    while (spi_is_readable(global_spi)) {
-        uint32_t drained_byte = spi_get_hw(global_spi)->dr;
+    // Drain the single dummy byte (command response) from RX FIFO
+    while (!spi_is_readable(global_spi)) {
+        tight_loop_contents();
+    }
+    (void) spi_get_hw(global_spi)->dr;  // Discard command response
 
 #if DMA_DEBUG
-        printf("reg_read: Draining byte 0x%02x from RX FIFO\n", drained_byte);
-#endif
-        drained_before_data++;
-    }
-
-#if DMA_DEBUG
-    if (drained_before_data > 0) {
-        printf("reg_read: Drained %lu bytes before data phase\n", drained_before_data);
-    }
+    printf("reg_read: Drained command response byte\n");
 #endif
 
     // For reading, we need to send dummy bytes (0x00) to clock in the data
     // Setup both TX (dummy bytes) and RX (actual data) simultaneously
     static uint8_t dummy = 0x00;
 
-    // Setup TX DMA to send dummy bytes (same address, no increment)
-    dma_channel_config tx_cfg = dma_channel_get_default_config(tx_dma_chan);
-    channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
-    channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
-    channel_config_set_read_increment(&tx_cfg, false);  // Don't increment (same dummy byte)
-    channel_config_set_write_increment(&tx_cfg, false);
-    dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
-                         &dummy, nbytes, false);
+    // Update TX DMA addresses and count (already configured for dummy reads in init)
+    dma_channel_set_read_addr(tx_dma_chan, &dummy, false);
+    dma_channel_set_trans_count(tx_dma_chan, nbytes, false);
 
-    // Setup RX DMA to receive data - FULL reconfiguration every time
-    dma_channel_config rx_cfg = dma_channel_get_default_config(rx_dma_chan);
-    channel_config_set_transfer_data_size(&rx_cfg, DMA_SIZE_8);
-    channel_config_set_dreq(&rx_cfg, spi_get_dreq(global_spi, false));  // RX DREQ
-    channel_config_set_read_increment(&rx_cfg, false);   // Read from same SPI FIFO
-    channel_config_set_write_increment(&rx_cfg, true);   // Write to sequential buffer
-    dma_channel_configure(rx_dma_chan, &rx_cfg,
-                         buf,                           // Write to buffer
-                         &spi_get_hw(global_spi)->dr,  // Read from SPI RX FIFO
-                         nbytes,                        // Transfer count
-                         false);                        // Don't start yet
+    // Update RX DMA addresses and count (already configured in init)
+    dma_channel_set_write_addr(rx_dma_chan, buf, false);
+    dma_channel_set_trans_count(rx_dma_chan, nbytes, false);
 
-    // Start both channels
+    // Start both channels simultaneously
     dma_start_channel_mask((1u << tx_dma_chan) | (1u << rx_dma_chan));
 
     // Wait for both to complete
@@ -249,20 +228,14 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
          return;
      }
 
-     // CRITICAL: Completely drain RX FIFO before data phase
-     // Discard command response AND any stale data from previous operations
-     uint32_t drained_before_data = 0;
-     while (spi_is_readable(global_spi)) {
-         uint8_t drained_byte = (uint8_t)spi_get_hw(global_spi)->dr;
-
-#if DMA_DEBUG
-         printf("rfm96_get_buf: Draining byte 0x%02x from RX FIFO\n", drained_byte);
-#endif
-
-         drained_before_data++;
+     // Drain the single dummy byte (command response) from RX FIFO
+     while (!spi_is_readable(global_spi)) {
+         tight_loop_contents();
      }
+     (void) spi_get_hw(global_spi)->dr;  // Discard command response
+
 #if DMA_DEBUG
-     printf("rfm96_get_buf: Drained %lu bytes before data phase\n", drained_before_data);
+     printf("rfm96_get_buf: Drained command response byte\n");
 #endif
 
      // GETS from the radio module the buffer using DMA
@@ -270,28 +243,15 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
      // the SPI shared clock.
      static uint8_t dummy = 0x00;
 
-     // Setup TX DMA to send dummy bytes (same address, no increment)
-     dma_channel_config tx_cfg = dma_channel_get_default_config(tx_dma_chan);
-     channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
-     channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
-     channel_config_set_read_increment(&tx_cfg, false);  // Don't increment
-     channel_config_set_write_increment(&tx_cfg, false);
-     dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
-                          &dummy, n, false);
+     // Update TX DMA addresses and count (already configured for dummy reads in init)
+     dma_channel_set_read_addr(tx_dma_chan, &dummy, false);
+     dma_channel_set_trans_count(tx_dma_chan, n, false);
 
-     // Setup RX DMA to receive data - FULL reconfiguration every time
-     dma_channel_config rx_cfg = dma_channel_get_default_config(rx_dma_chan);
-     channel_config_set_transfer_data_size(&rx_cfg, DMA_SIZE_8);
-     channel_config_set_dreq(&rx_cfg, spi_get_dreq(global_spi, false));  // RX DREQ
-     channel_config_set_read_increment(&rx_cfg, false);   // Read from same SPI FIFO
-     channel_config_set_write_increment(&rx_cfg, true);   // Write to sequential buffer
-     dma_channel_configure(rx_dma_chan, &rx_cfg,
-                          buf,                           // Write to buffer
-                          &spi_get_hw(global_spi)->dr,  // Read from SPI RX FIFO
-                          n + 1,                        // Transfer count; include the command byte
-                          false);                        // Don't start yet
+     // Update RX DMA addresses and count (already configured in init)
+     dma_channel_set_write_addr(rx_dma_chan, buf, false);
+     dma_channel_set_trans_count(rx_dma_chan, n, false);
 
-     // Start both channels
+     // Start both channels simultaneously
      dma_start_channel_mask((1u << tx_dma_chan) | (1u << rx_dma_chan));
 
      // Wait for both to complete
@@ -300,7 +260,7 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
          cs_deselect();
          return;
      }
-     buf[0] = buf[1];  // Shift data down to start of buffer
+
 #if DMA_DEBUG
      printf("rfm96_get_buf: After DMA, buf[0]=0x%02x\n", buf[0]);
 #endif
@@ -388,12 +348,12 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
   
  /*
   * Get a single byte from an RFM9X register
-  * v has two bytes to give room for the dummy byte*/
+  */
 uint8_t rfm96_get8(rfm96_reg_t reg)
  {
-     uint8_t v[2] = {0};
-     rfm96_get_buf(reg, v, 1);
-     return v[1];
+     uint8_t v = 0;
+     rfm96_get_buf(reg, &v, 1);
+     return v;
  }
  
  void rfm96_reset()
@@ -990,10 +950,12 @@ uint8_t rfm96_get_mode()
     rx_dma_chan = dma_claim_unused_channel(true);
 
     // Configure TX DMA: memory -> SPI TX FIFO
+    // Default configuration is for reads (sending dummy bytes with read_increment = false)
+    // Write functions will reconfigure this as needed
     dma_channel_config tx_config = dma_channel_get_default_config(tx_dma_chan);
     channel_config_set_transfer_data_size(&tx_config, DMA_SIZE_8);
     channel_config_set_dreq(&tx_config, spi_get_dreq(global_spi, true));
-    channel_config_set_read_increment(&tx_config, true);
+    channel_config_set_read_increment(&tx_config, false);  // For dummy byte reads
     channel_config_set_write_increment(&tx_config, false);
     dma_channel_configure(
         tx_dma_chan,
