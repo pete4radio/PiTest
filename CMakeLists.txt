@@ -27,6 +27,7 @@ endif()
 set(PICO_BOARD SAMWISE CACHE STRING "Board type")
 # Comment out the next line if you are building for a Pico breadboard
 set (PICO_PLATFORM rp2350 CACHE STRING "Platform Type")
+set(ENV{PICO} "PICO PINOUT")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)

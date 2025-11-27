@@ -8,7 +8,8 @@
 #define RFM96_FREQUENCY 437700000
 #define RFM96_BANDWIDTH 125000
 
-#if defined (PICO)
+#define PICO 1
+#if defined(PICO)
     /*
     * Pins for only the pico here...
     * CMakeLists.txt says add_compile_definitions(PICO)
@@ -116,7 +117,7 @@ typedef enum
     {                                                \
         if (!(condition))                            \
         {                                            \
-            printf("Assertion failed: " #condition); \
+            printf("Assertion failed: " #condition "\r\n"); \
         }                                            \
     }
 /*

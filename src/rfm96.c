@@ -74,6 +74,15 @@ void reg_write(const uint8_t reg, const uint8_t data) {
     msg[0] = 0x00 | reg;
     msg[1] = data;
 
+    // Ensure TX DMA is configured for writes (read_increment = true)
+    dma_channel_config tx_cfg = dma_channel_get_default_config(tx_dma_chan);
+    channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
+    channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
+    channel_config_set_read_increment(&tx_cfg, true);
+    channel_config_set_write_increment(&tx_cfg, false);
+    dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
+                         NULL, 0, false);
+
     // CS is active low:  Write to register using DMA
     gpio_put(SAMWISE_RF_CS_PIN, 0);
 
@@ -87,6 +96,16 @@ void reg_write(const uint8_t reg, const uint8_t data) {
     }
 
     gpio_put(SAMWISE_RF_CS_PIN, 1);
+
+    // Drain the SPI RX FIFO after write to prevent stale data
+    // affecting subsequent reads (SPI is full-duplex)
+    // Read back the 2 bytes (command + data) that were echoed
+    for (int i = 0; i < 2; i++) {
+        while (!spi_is_readable(global_spi)) {
+            tight_loop_contents();
+        }
+        (void) spi_get_hw(global_spi)->dr;
+    }
 }
 
 // Read byte(s) from specified register. If nbytes > 1, read from consecutive
@@ -150,15 +169,6 @@ int reg_read(const uint8_t reg, uint8_t *buf, const uint8_t nbytes) {
 
     gpio_put(SAMWISE_RF_CS_PIN, 1);
 
-    // Restore TX DMA config for normal writes (with read increment)
-    tx_cfg = dma_channel_get_default_config(tx_dma_chan);
-    channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
-    channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
-    channel_config_set_read_increment(&tx_cfg, true);
-    channel_config_set_write_increment(&tx_cfg, false);
-    dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
-                         NULL, 0, false);
-
     return nbytes;
 }
 
@@ -193,7 +203,8 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
      cs_select();
 
      // First, configure that we will be GETTING from the Radio Module.
-     uint8_t value = reg & 0x7F;
+     uint8_t value = reg | 0x80;
+     printf("rfm96_get_buf: Reading reg=0x%02x, cmd=0x%02x, n=%lu\n", reg, value, n);
 
      // WRITES to the radio module the value, of length 1 byte, that says that we
      // are GETTING (using DMA)
@@ -234,14 +245,7 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
          return;
      }
 
-     // Restore TX DMA config for normal writes (with read increment)
-     tx_cfg = dma_channel_get_default_config(tx_dma_chan);
-     channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
-     channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
-     channel_config_set_read_increment(&tx_cfg, true);
-     channel_config_set_write_increment(&tx_cfg, false);
-     dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
-                          NULL, 0, false);
+     printf("rfm96_get_buf: After DMA, buf[0]=0x%02x\n", buf[0]);
 
      cs_deselect();
  }
@@ -254,7 +258,17 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
      cs_select();
 
      // this value will be passed in to tell the radio that we will be writing data
-     uint8_t value = reg | 0x80;
+     uint8_t value = reg & 0x7F;
+     printf("rfm96_put_buf: Writing reg=0x%02x, cmd=0x%02x, n=%lu, data[0]=0x%02x\n", reg, value, n, buf[0]);
+
+     // Ensure TX DMA is configured for writes (read_increment = true)
+     dma_channel_config tx_cfg = dma_channel_get_default_config(tx_dma_chan);
+     channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_8);
+     channel_config_set_dreq(&tx_cfg, spi_get_dreq(global_spi, true));
+     channel_config_set_read_increment(&tx_cfg, true);
+     channel_config_set_write_increment(&tx_cfg, false);
+     dma_channel_configure(tx_dma_chan, &tx_cfg, &spi_get_hw(global_spi)->dr,
+                          NULL, 0, false);
 
      // Send command byte using DMA
      dma_channel_set_read_addr(tx_dma_chan, &value, false);
@@ -277,6 +291,28 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
      }
 
      cs_deselect();
+
+     // Drain the SPI RX FIFO after write to prevent stale data
+     // affecting subsequent reads (SPI is full-duplex)
+     printf("rfm96_put_buf: Before drain, SPI readable=%d, RX DMA busy=%d\n",
+            spi_is_readable(global_spi), dma_channel_is_busy(rx_dma_chan));
+
+     uint32_t drained = 0;
+     // Read back the (1 + n) bytes (command + data) that were echoed
+     for (uint32_t i = 0; i < (1 + n); i++) {
+         uint32_t timeout = 0;
+         while (!spi_is_readable(global_spi) && timeout < 10000) {
+             tight_loop_contents();
+             timeout++;
+         }
+         if (timeout >= 10000) {
+             printf("rfm96_put_buf: FIFO drain timeout at byte %lu\n", i);
+             break;
+         }
+         (void) spi_get_hw(global_spi)->dr;
+         drained++;
+     }
+     printf("rfm96_put_buf: Drained %lu bytes\n", drained);
  }
  
  /*
@@ -366,6 +402,7 @@ uint8_t rfm96_get_mode()
   void rfm96_set_lora(uint8_t lora)
  {
      uint8_t reg = rfm96_get8(_RH_RF95_REG_01_OP_MODE);
+     printf("rfm96_set_lora: Read OpMode reg=0x%02x\n", reg);
      if (lora)
          reg = bit_set(reg, 7);
      else
@@ -373,6 +410,7 @@ uint8_t rfm96_get_mode()
             reg = bit_clr(reg, 7);
             printf("rfm96_set_lora: Warning, LoRa mode was set off\n");
          }
+     printf("rfm96_set_lora: Writing OpMode reg=0x%02x\n", reg);
      rfm96_put8(_RH_RF95_REG_01_OP_MODE, reg);
  }
  
@@ -383,6 +421,7 @@ uint8_t rfm96_get_mode()
   uint8_t rfm96_get_lora()
  {
      uint8_t reg = rfm96_get8(_RH_RF95_REG_01_OP_MODE);
+     printf("rfm96_get_lora: Read OpMode reg=0x%02x, bit7=%d\n", reg, bit_is_on(reg, 7));
      return bit_is_on(reg, 7);
  }
  
@@ -939,13 +978,14 @@ uint8_t rfm96_get_mode()
       */
      rfm96_set_mode(SLEEP_MODE);
      sleep_ms(10);
+     ASSERT(rfm96_get_mode() == SLEEP_MODE);
      rfm96_set_lora(1);
      sleep_ms(10);
+    ASSERT(rfm96_get_lora() == 1);
      // check for SLEEP_MODE and LoRa mode
         if((rfm96_get_mode() != SLEEP_MODE) || (rfm96_get_lora() != 1))
         {
             printf("rfm96: ERROR not in sleep mode or LoRa mode\n");
-            return 1;
         }
 
      /*
