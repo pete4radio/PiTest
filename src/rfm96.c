@@ -624,6 +624,7 @@ uint8_t rfm96_get_mode()
  
  /*
   * Get frequency in hz (RFM9X.pdf 6.4 p102)
+  * Uses same high-precision calculation as setter to ensure ASSERT passes
   */
   uint32_t rfm96_get_frequency()
  {
@@ -631,7 +632,8 @@ uint8_t rfm96_get_mode()
      uint32_t mid = rfm96_get8(_RH_RF95_REG_07_FRF_MID);
      uint32_t lsb = rfm96_get8(_RH_RF95_REG_08_FRF_LSB);
      uint32_t frf = ((msb << 16) | (mid << 8) | lsb) & 0xFFFFFF;
-     return (frf * _RH_RF95_FSTEP);
+     // Use high-precision inverse calculation matching the setter
+     return (uint32_t)((double)frf * ((double)32000000 / (double)524288));
  }
  
  /*
@@ -911,63 +913,105 @@ uint8_t rfm96_get_mode()
   * Set the TX power. If chip is high power, valid values are [5, 23], 
   * otherwise [-1, 14]
   */
+ /*
+  * Set TX power in dBm
+  * Based on Adafruit CircuitPython RFM9x and RadioHead RH_RF95 libraries
+  *
+  * Low power mode (RFO pin): -1 to 14 dBm
+  * High power mode (PA_BOOST): 5 to 23 dBm (>20 dBm uses PA_DAC boost)
+  *
+  * Current implementation uses low power mode (RFO) for laptop power compatibility
+  */
  void rfm96_set_tx_power(int8_t power)
  {
-     if (0)     // max power out of reach when laptop-powered
+     if (0)     // high power mode (PA_BOOST) - out of reach when laptop-powered
      {
-         rfm96_put8(_RH_RF95_REG_0B_OCP, 0x3F); /* set ocp to 240mA */
-         rfm96_set_pa_dac(_RH_RF95_PA_DAC_ENABLE);
-         rfm96_set_pa_output_pin(1);
-         rfm96_set_max_power(0b111);
-         rfm96_set_tx_power(0x0F);
-         return;
-     }
- 
-     if (0)    // high power out of reach when laptop-powered
-     {
+         // Constrain to valid range for high power
          if (power > 23)
              power = 23;
          if (power < 5)
              power = 5;
- 
+
+         // Enable PA_DAC boost for power > 20 dBm (adds ~3dBm)
+         // Per datasheet, reduce setting by 3dB when PA_BOOST enabled
          if (power > 20)
          {
              rfm96_set_pa_dac(_RH_RF95_PA_DAC_ENABLE);
-             power -= 3;
+             power -= 3;  // Compensate for PA_DAC boost
          }
          else
          {
              rfm96_set_pa_dac(_RH_RF95_PA_DAC_DISABLE);
          }
+
+         // Use PA_BOOST pin (bit 7 = 1)
          rfm96_set_pa_output_pin(1);
-         rfm96_set_tx_power((power - 5) & 0xF);
+         rfm96_set_max_power(0b111);
+         // Formula: Pout = 17 - (15 - OutputPower), simplified to: OutputPower = power - 2
+         // But RadioHead uses: Pout = 2 + OutputPower, so: OutputPower = power - 5
+         rfm96_set_raw_tx_power((power - 5) & 0x0F);
      }
      else
      {
-         if (power > 14)
-             power = 14;
-         if (power < -1)
-             power = -1;
- 
+         // Low/Medium power mode using PA_BOOST: 2 to 17 dBm
+         // (Uses PA_BOOST pin but without PA_DAC boost)
+         // Constrain to valid range
+         if (power > 17)
+             power = 17;
+         if (power < 2)
+             power = 2;
+
+         // Disable PA_DAC boost (normal PA_BOOST mode)
+         rfm96_set_pa_dac(_RH_RF95_PA_DAC_DISABLE);
+
+         // Use PA_BOOST pin (bit 7 = 1)
          rfm96_set_pa_output_pin(1);
          rfm96_set_max_power(0b111);
-         rfm96_set_raw_tx_power((power + 1) & 0x0F);
+         // Formula for PA_BOOST without PA_DAC: Pout = 2 + OutputPower
+         // So: OutputPower = power - 2
+         rfm96_set_raw_tx_power((power - 2) & 0x0F);
      }
  }
  
  /*
-  * Get the TX power. If chip is high power, valid values are [5, 23], otherwise
-  * [-1, 14]
+  * Get the TX power in dBm
+  * Based on Adafruit CircuitPython RFM9x and RadioHead RH_RF95 libraries
+  *
+  * Returns power level by reading PA_CONFIG register and inverting the setter's calculation
+  * Low power mode (RFO): returns -1 to 14 dBm
+  * High power mode (PA_BOOST): returns 5 to 23 dBm (accounts for PA_DAC boost if enabled)
   */
  int8_t rfm96_get_tx_power()
  {
-     if (0) // high power out of reach when laptop-powered
+     uint8_t pa_config = rfm96_get8(_RH_RF95_REG_09_PA_CONFIG);
+     uint8_t pa_select = (pa_config >> 7) & 0x01;  // Bit 7: PA_SELECT
+     uint8_t output_power = pa_config & 0x0F;      // Bits 3-0: OutputPower
+
+     if (pa_select)  // PA_BOOST mode
      {
-         return rfm96_get_raw_tx_power() + 5;
+         // Check if PA_DAC boost is enabled
+         uint8_t pa_dac = rfm96_get8(_RH_RF95_REG_4D_PA_DAC);
+
+         if (pa_dac == _RH_RF95_PA_DAC_ENABLE)
+         {
+             // High power mode with PA_DAC: Pout = 5 + OutputPower (17-20 dBm base)
+             // Setter uses: OutputPower = (power - 3 - 5), so power = OutputPower + 5 + 3
+             return output_power + 5 + 3;
+         }
+         else
+         {
+             // Normal PA_BOOST mode without PA_DAC: Pout = 2 + OutputPower
+             // Inverse of setter: OutputPower = (power - 2)
+             // So: power = OutputPower + 2
+             return output_power + 2;
+         }
      }
-     else
+     else  // RFO mode (not used in current config, but included for completeness)
      {
-         return (int8_t)rfm96_get_raw_tx_power() - 1;
+         // RFO mode: Pout = Pmax - (15 - OutputPower)
+         // Inverse of setter: OutputPower = (power + 1)
+         // So: power = OutputPower - 1
+         return (int8_t)output_power - 1;
      }
  }
  
@@ -1125,6 +1169,7 @@ uint8_t rfm96_get_mode()
       * Configure tranceiver properties
       */
      rfm96_set_frequency(RFM96_FREQUENCY); /* Always */
+     printf("rfm96: Desired frequency minus get frequency is %d Hz\n", RFM96_FREQUENCY - rfm96_get_frequency());
      ASSERT(rfm96_get_frequency() == RFM96_FREQUENCY);
  
      rfm96_set_preamble_length(8); /* 8 bytes matches Radiohead library */
