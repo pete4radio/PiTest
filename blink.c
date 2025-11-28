@@ -400,7 +400,7 @@ int main() {
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_transmit();  //  Send the packet
                     red();  //  Indicate we are transmitting
-                    sleep_ms(230);  //  give the radio time to TX before "are we there yet?"
+                    //sleep_ms(230);  //  give the radio time to TX before "are we there yet?"
 
                     int i = 100000;
                     while (!rfm96_tx_done() && i--) { sleep_us(10);  }
