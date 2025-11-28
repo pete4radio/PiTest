@@ -250,6 +250,34 @@ int main() {
     uint32_t interval_COMMANDS = 1000000;
     char buffer_COMMANDS[BUFLEN] = "";
 
+
+    if (radio_initialized == 0) { //check each time so radio can be hot swapped in.
+        radio_initialized = rfm96_init(&spi_pins); }
+    if (radio_initialized) {
+//  Check that we can know here when the transmitter has completed
+//  by sending a short and a long packet and measuring the time it takes
+//  starting time
+        red();  //  Indicate we are transmitting
+        absolute_time_t start_time = get_absolute_time();
+//  Send a short packet                    
+        rfm96_packet_to_fifo(buffer_RADIO_TX, 5);
+        rfm96_transmit();  //  Send the packet
+        int ip = 10000;
+        while (!rfm96_tx_done() && ip--) { sleep_us(10);  }
+        if (!rfm96_tx_done()) printf("main: TX timed out\n");
+        printf("Time to send a short packet: %lld ms (%d iterations left)\n", absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
+        start_time = get_absolute_time();
+//  Send a long packet
+        rfm96_packet_to_fifo(buffer_RADIO_TX, 250);
+        rfm96_transmit();  //  Send the packet
+        ip = 100000;
+        while (!rfm96_tx_done() && ip--) { sleep_us(10);  }
+        if (!rfm96_tx_done()) printf("main: TX timed out\n");
+        printf("Time to send a long packet: %lld ms (%d iterations left)\n", absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
+        rfm96_listen(); //  Set the radio to RX mode
+        green();    //  Indicate we are receiving
+    }
+
     while (true) {
 
     // Time to LED ON?
@@ -372,9 +400,9 @@ int main() {
                     rfm96_packet_to_fifo(buffer_RADIO_TX, strlen(buffer_RADIO_TX));
                     rfm96_transmit();  //  Send the packet
                     red();  //  Indicate we are transmitting
-                    //sleep_ms(30);  //  give the radio time to TX before "are we there yet?"
+                    sleep_ms(230);  //  give the radio time to TX before "are we there yet?"
 
-                    int i = 10000;
+                    int i = 100000;
                     while (!rfm96_tx_done() && i--) { sleep_us(10);  }
                     if (!rfm96_tx_done()) printf("main: TX timed out\n");
                 }

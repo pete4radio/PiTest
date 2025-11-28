@@ -1204,6 +1204,10 @@ uint8_t rfm96_get_mode()
      rfm96_set_lna_boost(0b11);
      ASSERT(rfm96_get_lna_boost() == 0b11);
 
+//  Enable the busy I/O line to signal RX and TX done
+        uint8_t dio_mapping1 = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
+        rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dio_mapping1 & 0b00111111); // DIO0 = RXDONE/TXDONE
+
      rfm96_listen();       // Start by listening
      printf("rfm96: Initialization complete\n");
      return (v != 0x11);    // 0 is success; 1 is failure; 0x11 is the Chip ID again
@@ -1223,6 +1227,7 @@ uint8_t rfm96_get_mode()
     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
     // Clear any pending interrupts, they might be from the receiver
     rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0xFF);
+    sleep_us(10);  // Brief delay to ensure IRQ flags are fully cleared before reading back
     if (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) != 0x00) {printf("rfm96_transmit: IRQ flags not successfully cleared\n");};
 //  Going on the air!
     rfm96_set_mode(TX_MODE);
@@ -1235,6 +1240,7 @@ uint8_t rfm96_get_mode()
     rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dioValue);
 // Clear any pending interrupts, they might be from the transmitter
     rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0xFF);
+    sleep_us(10);  // Brief delay to ensure IRQ flags are fully cleared before reading back
     if (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) != 0x00) {printf("rfm96_listen: IRQ flags not successfully cleared\n");};
 //  Put incoming packet at bottom of FIFO
     rfm96_put8(_RH_RF95_REG_0D_FIFO_ADDR_PTR, 0x00);
@@ -1247,21 +1253,15 @@ uint8_t rfm96_get_mode()
  uint8_t rfm96_tx_done()
  {
 //     return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x8) >> 3;
-       return gpio_get(SAMWISE_RF_D0_PIN);  // Datasheet says DIO0 is high when TX done
+     return gpio_get(SAMWISE_RF_D0_PIN);  // Datasheet says DIO0 is high when TX done
 }
  
  uint8_t rfm96_rx_done()
  {
-//     uint8_t dioValue = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
-//     if (dioValue)
-//   {
-//       return dioValue;
-//   }
-//   else
-//   {
-//       return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x40) >> 6;
-//   }
-     return gpio_get(SAMWISE_RF_D0_PIN);  // Datasheet says DIO0 is high when RX done
+    // Check the RX_DONE bit in the IRQ_FLAGS register
+//    return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x40) >> 6;
+    // Alternatively, use the DIO0 pin if configured for RX_DONE
+    return gpio_get(SAMWISE_RF_D0_PIN);
  }
  
  int rfm96_await_rx()
