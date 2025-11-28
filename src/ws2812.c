@@ -35,8 +35,8 @@ uint global_sm;
 #ifdef PICO_DEFAULT_WS2812_PIN
 #define WS2812_PIN PICO_DEFAULT_WS2812_PIN
 #else
-// default to pin 2 if the board doesn't have a default WS2812 pin defined
-#define WS2812_PIN 2
+// default to pin 22 if the board doesn't have a default WS2812 pin defined
+#define WS2812_PIN 22
 #endif
 
 // Check the pin is compatible with the platform

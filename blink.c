@@ -145,7 +145,7 @@ int main() {
     rc = pico_I2C_init();
     hard_assert(rc == PICO_OK);
 
-    rc = ws2812_init();
+    int ws2812rc = ws2812_init();
     white();  //  Indicate we are idle
 
     //Initialize serial port(s) chosen in CMakeLists.txt
@@ -379,7 +379,7 @@ int main() {
                         remaining_space -= written; // Update the remaining space
                     }               
              //  Next packet comes in at the bottom of the fifo
-             rfm96_listen(); //  Set the radio to RX mode
+             //rfm96_listen(); //  Set the radio to RX mode
              green();  //  Indicate we are receiving
             }
 
@@ -405,6 +405,7 @@ int main() {
                     int i = 100000;
                     while (!rfm96_tx_done() && i--) { sleep_us(10);  }
                     if (!rfm96_tx_done()) printf("main: TX timed out\n");
+                    sleep_ms(50);  //  give the radio time to settle before next TX
                 }
                 rfm96_listen(); //  Set the radio to RX mode
                 green();    //  Indicate we are receiving
