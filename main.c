@@ -184,10 +184,11 @@ void dio0_isr() {
 
         // Clear RX_DONE interrupt flag
         rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x40);
-    }
 
-    // Continue listening
-    rfm96_listen();
+        // Continue listening for next packet
+        rfm96_listen();
+    }
+    // Note: If TX_DONE fires (bit 3), we ignore it - ISR is only for RX
 }
 
 int main() {
@@ -250,7 +251,7 @@ int main() {
     // Set up DIO0 GPIO interrupt for packet reception
     if (radio_initialized) {
         gpio_set_irq_enabled_with_callback(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &dio0_isr);
-        printf("DIO0 ISR enabled on GPIO %d\n", SAMWISE_RF_D0_PIN);
+        printf("main: DIO0 ISR enabled on GPIO %d\n", SAMWISE_RF_D0_PIN);
     }
 
 //  RADIO_RX
@@ -260,7 +261,8 @@ int main() {
     char packet[256];  // room for incoming packet and dummy byte
     uint8_t nCRC = 0; // CRC error count
 
-//  LED State Management
+//  ws2812 LED State Management.  Used to have the LED green while packets
+//  are in the received queue plus a timed check to turn it off after a delay
     absolute_time_t previous_time_LED = get_absolute_time();
     uint32_t interval_LED = 100000;  // Check LED state every 100ms
     bool led_green_active = false;
@@ -328,12 +330,15 @@ int main() {
     if (radio_initialized == 0) { //check each time so radio can be hot swapped in.
         radio_initialized = rfm96_init(&spi_pins); }
     if (radio_initialized) {
+//  Disable ISR during test to prevent interference with tx_done()
+        gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
+
 //  Check that we can know here when the transmitter has completed
 //  by sending a short and a long packet and measuring the time it takes
 //  starting time
         red();  //  Indicate we are transmitting
         absolute_time_t start_time = get_absolute_time();
-//  Send a short packet                    
+//  Send a short packet
         rfm96_packet_to_fifo(buffer_RADIO_TX, 5);
         rfm96_transmit();  //  Send the packet
         int ip = 10000;
@@ -350,6 +355,9 @@ int main() {
         printf("Time to send a long packet: %lld ms (%d iterations left)\n", absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
         rfm96_listen(); //  Set the radio to RX mode
         green();    //  Indicate we are receiving
+
+//  Re-enable ISR after test completes
+        gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
     }
 
     while (true) {

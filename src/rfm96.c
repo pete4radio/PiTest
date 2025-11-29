@@ -1252,16 +1252,14 @@ uint8_t rfm96_get_mode()
  
  uint8_t rfm96_tx_done()
  {
-    // Check the TX_DONE bit (bit 3, 0x08) in the IRQ_FLAGS register
-    // LoRa datasheet Table 18: IRQ flags
-    return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x08) >> 3;
+    // DIO0 goes high when TX is complete (mapped in rfm96_transmit)
+    return gpio_get(SAMWISE_RF_D0_PIN);
 }
 
  uint8_t rfm96_rx_done()
  {
-    // Check the RX_DONE bit (bit 6, 0x40) in the IRQ_FLAGS register
-    // LoRa datasheet Table 18: IRQ flags
-    return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x40) >> 6;
+    // DIO0 goes high when RX is complete (mapped in rfm96_listen)
+    return gpio_get(SAMWISE_RF_D0_PIN);
  }
 
  /*
