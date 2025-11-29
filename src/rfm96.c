@@ -5,6 +5,9 @@
 #include "hardware/dma.h"
 #include "pins.h"
 
+// External global CRC error counter (defined in main.c)
+extern volatile uint8_t nCRC;
+
 /*
  * RFM96 Radio Driver - Non-Blocking DMA SPI Implementation
  *
@@ -1321,11 +1324,11 @@ uint8_t rfm96_get_mode()
      uint8_t n_read = 0;
      uint8_t old_mode = rfm96_get_mode();
      rfm96_set_mode(STANDBY_MODE);
- 
+
      // Check for CRC error
      if (rfm96_is_crc_enabled() && rfm96_crc_error())
      {
-         printf("rfm96: got a packet but it has a CRC error\n");
+         nCRC++;  // Increment global CRC error counter
      }
      else
      {
@@ -1335,7 +1338,7 @@ uint8_t rfm96_get_mode()
              uint8_t current_addr =
                  rfm96_get8(_RH_RF95_REG_10_FIFO_RX_CURRENT_ADDR);
              rfm96_put8(_RH_RF95_REG_0D_FIFO_ADDR_PTR, current_addr);
- 
+
              // read the packet
              rfm96_get_buf(_RH_RF95_REG_00_FIFO, buf, fifo_length);
          }

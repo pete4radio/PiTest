@@ -148,6 +148,9 @@ volatile uint8_t queue_tail = 0;  // Main loop reads here
 volatile uint8_t queue_count = 0;
 volatile absolute_time_t last_packet_time;  // For LED green timing
 
+// Global CRC error counter (incremented by rfm96_packet_from_fifo)
+volatile uint8_t nCRC = 0;
+
 /*
  * DIO0 GPIO Interrupt Service Routine
  * Triggered when a packet is received (RX_DONE interrupt)
@@ -214,7 +217,8 @@ int main() {
     //Initialize serial port(s) chosen in CMakeLists.txt
     stdio_init_all();
     //  see https://forums.raspberrypi.com/viewtopic.php?t=300136
-    int i = 100;
+    printf("main: waiting for USB to connect\n");
+    int i = 10;
     while (!stdio_usb_connected() && i--) { sleep_ms(100);  }
     printf("USB_connected or timed out\n");
 
@@ -243,7 +247,7 @@ int main() {
 
 //  RADIO_TX
     absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms
-    uint32_t interval_RADIO_TX = 2*1010* 1000;                        // Give the radio time to RX
+    uint32_t interval_RADIO_TX = 20*1010* 1000;                        // Give the radio time to RX
     char buffer_RADIO_TX[BUFLEN] = "";
     uint8_t tx_packet[250];  // Separate 250-byte buffer for TX packets
     radio_initialized = rfm96_init(&spi_pins);
@@ -259,7 +263,6 @@ int main() {
     uint32_t interval_RADIO_RX = 1000000;
     char buffer_RADIO_RX[BUFLEN*2] = "";
     char packet[256];  // room for incoming packet and dummy byte
-    uint8_t nCRC = 0; // CRC error count
 
 //  ws2812 LED State Management.  Used to have the LED green while packets
 //  are in the received queue plus a timed check to turn it off after a delay
@@ -426,9 +429,11 @@ int main() {
 // RADIO_RX: Process packet queue (filled by ISR)
         if (absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
             previous_time_RADIO_RX = get_absolute_time();
-            sprintf(buffer_RADIO_RX, "RXd ");     //DMA, Non-Blocking; clears out the results buffer
+            sprintf(buffer_RADIO_RX, "RXd ");  //DMA, Non-Blocking Clears out the results buffer
+            if (nCRC > 0) sprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), "%d CRC ", nCRC);     //Add a CRC if there was an error this time period
+            nCRC = 0;  // Zero out CRC error count after displaying
 
-            if (radio_initialized && queue_count > 0) {
+            if (radio_initialized) {  //  Each time we run, update the histogram of received power levels
                 // Process all packets in queue
                 while (queue_count > 0) {
                     volatile packet_t *pkt = &packet_queue[queue_tail];
@@ -505,12 +510,13 @@ int main() {
                     while (!rfm96_tx_done() && timeout--) { sleep_us(10); }
                     if (!rfm96_tx_done()) printf("main: TX timed out at power %d\n", pwr);
 
-                    sleep_ms(50);  //  Inter-packet spacing
+                    //sleep_ms(50);  //  Inter-packet spacing
                 }
 
                 // Re-enable ISR and return to RX mode
                 gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
                 rfm96_listen();
+                green();    //  Indicate we are receiving
                 sprintf(buffer_RADIO_TX, "RADIO_TX packets sent (10 to -1 dBm)\n");
             }
         }
@@ -524,7 +530,7 @@ int main() {
                 // Manage LED color when listening based on queue state
                 if (queue_count == 0) {
                     // Queue empty, listening - white LED
-                    white();
+                    green();
                 } else {
                     // Queue has entries - check if we're within 500ms of last packet
                     uint64_t time_since_last_packet_us = absolute_time_diff_us(last_packet_time, get_absolute_time());
