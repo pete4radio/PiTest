@@ -32,15 +32,15 @@ set(ENV{PICO} "PICO PINOUT")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-set (PROJECT blink)
-project(blink C CXX ASM)
+set (PROJECT main)
+project(main C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
 # Get the TinyUSB config file for the RP2350 and put it into include
 #  git clone https://github.com/hathach/tinyusb.git
-add_executable(${PROJECT}  ${PROJECT}.c src/rfm96.c src/ws2812.c src/mppt.c src/power.c 
+add_executable(${PROJECT}  main.c src/rfm96.c src/ws2812.c src/mppt.c src/power.c
     src/ads7830.c src/gps.c src/uart.c)
 
 #  Comment this out if you're building for the PiCubed pinout breadboard
