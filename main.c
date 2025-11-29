@@ -357,7 +357,7 @@ int main() {
         if (!rfm96_tx_done()) printf("main: TX timed out\n");
         printf("Time to send a long packet: %lld ms (%d iterations left)\n", absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
         rfm96_listen(); //  Set the radio to RX mode
-        green();    //  Indicate we are receiving
+        white();    //  Indicate we are receiving
 
 //  Re-enable ISR after test completes
         gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
@@ -516,7 +516,7 @@ int main() {
                 // Re-enable ISR and return to RX mode
                 gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
                 rfm96_listen();
-                green();    //  Indicate we are receiving
+                white();    //  Indicate we are receiving
                 sprintf(buffer_RADIO_TX, "RADIO_TX packets sent (10 to -1 dBm)\n");
             }
         }
@@ -530,7 +530,7 @@ int main() {
                 // Manage LED color when listening based on queue state
                 if (queue_count == 0) {
                     // Queue empty, listening - white LED
-                    green();
+                    white();
                 } else {
                     // Queue has entries - check if we're within 500ms of last packet
                     uint64_t time_since_last_packet_us = absolute_time_diff_us(last_packet_time, get_absolute_time());
