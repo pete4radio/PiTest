@@ -153,6 +153,8 @@ void rfm96_transmit();
 
 uint8_t rfm96_tx_done();
 uint8_t rfm96_rx_done();
+int8_t rfm96_get_snr();
+int16_t rfm96_get_rssi();
 
 uint8_t rfm96_packet_to_fifo(uint8_t *buf, uint8_t n);
 uint8_t rfm96_packet_from_fifo(uint8_t *buf);
@@ -237,3 +239,7 @@ typedef enum
     _RH_FLAGS_ACK = 0x80,
     _RH_FLAGS_RETRY = 0x40,
 } rfm96_reg_t;
+
+// Low-level register access functions (must be declared after rfm96_reg_t typedef)
+uint8_t rfm96_get8(rfm96_reg_t reg);
+void rfm96_put8(rfm96_reg_t reg, uint8_t v);

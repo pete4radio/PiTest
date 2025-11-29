@@ -1263,7 +1263,37 @@ uint8_t rfm96_get_mode()
     // Alternatively, use the DIO0 pin if configured for RX_DONE
     return gpio_get(SAMWISE_RF_D0_PIN);
  }
- 
+
+ /*
+  * Get SNR (Signal-to-Noise Ratio) of last received packet
+  * Returns SNR in dB (signed, can be negative)
+  * Formula from datasheet: SNR = PacketSnr / 4 (in dB)
+  */
+ int8_t rfm96_get_snr()
+ {
+     int8_t snr_raw = (int8_t)rfm96_get8(_RH_RF95_REG_19_PKT_SNR_VALUE);
+     return snr_raw / 4;  // Datasheet: SNR = PacketSnr[7:0] / 4
+ }
+
+ /*
+  * Get RSSI (Received Signal Strength Indicator) of last received packet
+  * Returns RSSI in dBm
+  * Formula from datasheet section 5.5.5:
+  * - If SNR >= 0: RSSI = -157 + PacketRssi
+  * - If SNR < 0:  RSSI = -157 + PacketRssi + PacketSnr*0.25
+  */
+ int16_t rfm96_get_rssi()
+ {
+     int8_t snr_raw = (int8_t)rfm96_get8(_RH_RF95_REG_19_PKT_SNR_VALUE);
+     uint8_t rssi_raw = rfm96_get8(_RH_RF95_REG_1A_PKT_RSSI_VALUE);
+
+     int16_t rssi = -157 + rssi_raw;
+     if (snr_raw < 0) {
+         rssi += (snr_raw / 4);  // Adjust for negative SNR
+     }
+     return rssi;
+ }
+
  int rfm96_await_rx()
  {
      rfm96_listen();
