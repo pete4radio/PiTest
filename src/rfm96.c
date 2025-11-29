@@ -1205,8 +1205,8 @@ uint8_t rfm96_get_mode()
      ASSERT(rfm96_get_lna_boost() == 0b11);
 
 //  Enable the busy I/O line to signal RX and TX done
-        uint8_t dio_mapping1 = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
-        rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dio_mapping1 & 0b00111111); // DIO0 = RXDONE/TXDONE
+//        uint8_t dio_mapping1 = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
+//        rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dio_mapping1 & 0b00111111); // DIO0 = RXDONE/TXDONE
 
      rfm96_listen();       // Start by listening
      printf("rfm96: Initialization complete\n");
@@ -1252,16 +1252,16 @@ uint8_t rfm96_get_mode()
  
  uint8_t rfm96_tx_done()
  {
-//     return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x8) >> 3;
-     return gpio_get(SAMWISE_RF_D0_PIN);  // Datasheet says DIO0 is high when TX done
+    // Check the TX_DONE bit (bit 3, 0x08) in the IRQ_FLAGS register
+    // LoRa datasheet Table 18: IRQ flags
+    return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x08) >> 3;
 }
- 
+
  uint8_t rfm96_rx_done()
  {
-    // Check the RX_DONE bit in the IRQ_FLAGS register
-//    return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x40) >> 6;
-    // Alternatively, use the DIO0 pin if configured for RX_DONE
-    return gpio_get(SAMWISE_RF_D0_PIN);
+    // Check the RX_DONE bit (bit 6, 0x40) in the IRQ_FLAGS register
+    // LoRa datasheet Table 18: IRQ flags
+    return (rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS) & 0x40) >> 6;
  }
 
  /*
