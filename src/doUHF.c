@@ -156,7 +156,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
     // RADIO_RX: Process packet queue (filled by ISR)
     if (absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
         previous_time_RADIO_RX = get_absolute_time();
-        sprintf(buffer_RADIO_RX, "RXd ");  // DMA, Non-Blocking Clears out the results buffer
+        sprintf(buffer_RADIO_RX, "RXdd ");  // DMA, Non-Blocking Clears out the results buffer
 
         if (nCRC > 0) {
             sprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), "%d CRC ", nCRC);
@@ -240,6 +240,6 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
         rfm96_listen();
         white();    // Indicate we are receiving
-        sprintf(buffer_RADIO_TX, "RADIO_TX packets sent (10 to -1 dBm)\n");
+        sprintf(buffer_RADIO_TX, "RADIO_TXdd packets sent (10 to -1 dBm)\n");
     }
 }
