@@ -42,6 +42,7 @@
 #include "gps.h"
 #include "main_gps_uart_shared_buffer.h"
 #include "doUHF.h"
+#include "doSband.h"
 char buffer_UART[BUFLEN] = {0}; // Define the buffer
 char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 
@@ -78,7 +79,19 @@ spi_pins_t spi_pins =
     .COPI = SAMWISE_RF_MOSI_PIN,
     .SCK = SAMWISE_RF_SCK_PIN,
     .CS = SAMWISE_RF_CS_PIN,
-    .D0 = SAMWISE_RF_D0_PIN
+    .D0 = SAMWISE_RF_D0_PIN,
+    .spi = spi0
+};
+
+// SBand SPI pins (shared bus with UHF)
+spi_pins_t spi_pins_sband = {
+    .RESET = SAMWISE_SBAND_RST_PIN,
+    .CIPO = SAMWISE_RF_MISO_PIN,     // Same MISO as UHF
+    .COPI = SAMWISE_RF_MOSI_PIN,     // Same MOSI as UHF
+    .SCK = SAMWISE_RF_SCK_PIN,       // Same SCK as UHF
+    .CS = SAMWISE_SBAND_CS_PIN,      // Different CS
+    .D0 = SAMWISE_SBAND_D0_PIN,      // Different D0
+    .spi = spi0                       // Same SPI instance
 };
 
 // for the I2C scanner, these I2C addresses are reserved
@@ -179,8 +192,16 @@ int main() {
 //  RADIO_TX and RX - now handled by doUHF module
     char buffer_RADIO_TX[BUFLEN] = "";
     char buffer_RADIO_RX[BUFLEN*2] = "";
+    // SBand buffers
+    char buffer_Sband_RX[BUFLEN*2] = "";
+    char buffer_Sband_TX[BUFLEN*2] = "";
+
     // Initialize UHF radio (includes ISR setup and tx_done test)
     initUHF(&spi_pins);
+
+    // Initialize SBand radio
+    printf("Initializing SBand radio...\n");
+    initSband(&spi_pins_sband);
 
 //  ws2812 LED State Management.  Used to have the LED green while packets
 //  are in the received queue plus a timed check to turn it off after a delay
@@ -306,6 +327,15 @@ int main() {
             printf(buffer_ADC);
             printf(buffer_RADIO_TX);
             printf("%s\n", buffer_RADIO_RX);
+            // Print SBand buffers
+            if (strlen(buffer_Sband_TX) > 0) {
+                printf("SBand TX: %s", buffer_Sband_TX);
+                buffer_Sband_TX[0] = '\0';  // Clear buffer
+            }
+            if (strlen(buffer_Sband_RX) > 0) {
+                printf("SBand RX: %s\n", buffer_Sband_RX);
+                buffer_Sband_RX[0] = '\0';  // Clear buffer
+            }
             printf(buffer_UART);
             printf(buffer_UART2);
             printf(buffer_GPS);
@@ -314,6 +344,9 @@ int main() {
 
 // RADIO_RX and RADIO_TX: Now handled by doUHF module
         doUHF(buffer_RADIO_RX, buffer_RADIO_TX);
+
+        // SBand operations
+        doSband(buffer_Sband_RX, buffer_Sband_TX);
 
         // Time to UART?
         if (absolute_time_diff_us(previous_time_UART, get_absolute_time()) >= interval_UART) {
