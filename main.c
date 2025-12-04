@@ -41,6 +41,7 @@
 #include "uart.h"
 #include "gps.h"
 #include "main_gps_uart_shared_buffer.h"
+#include "doUHF.h"
 char buffer_UART[BUFLEN] = {0}; // Define the buffer
 char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 
@@ -131,79 +132,9 @@ void pico_set_led(bool led_on) {
 #endif
 }
 
-// Packet queue structure definitions (before main for ISR access)
-#define QUEUE_SIZE 15
-#define PACKET_SIZE 256
-typedef struct {
-    uint8_t data[PACKET_SIZE];
-    uint8_t length;
-    int8_t snr;
-    int16_t rssi;
-} packet_t;
-
-// Global queue variables for ISR access
-volatile packet_t packet_queue[QUEUE_SIZE];
-volatile uint8_t queue_head = 0;  // ISR writes here
-volatile uint8_t queue_tail = 0;  // Main loop reads here
-volatile uint8_t queue_count = 0;
-volatile absolute_time_t last_packet_time;  // For LED green timing
-
-// Global CRC error counter (incremented by rfm96_packet_from_fifo)
-volatile uint8_t nCRC = 0;
-
-/*
- * DIO0 GPIO Interrupt Service Routine
- * Triggered when a packet is received (RX_DONE interrupt)
- * Copies packet from radio FIFO to queue using non-blocking DMA
- */
-void dio0_isr() {
-    // Check if this is an RX_DONE interrupt (not TX_DONE)
-    uint8_t irq_flags = rfm96_get8(_RH_RF95_REG_12_IRQ_FLAGS);
-
-    if (irq_flags & 0x40) {  // RX_DONE bit (bit 6)
-        // Check if queue has space
-        if (queue_count < QUEUE_SIZE) {
-            volatile packet_t *pkt = &packet_queue[queue_head];
-
-            // Read packet from FIFO using non-blocking DMA
-            pkt->length = rfm96_packet_from_fifo((uint8_t*)pkt->data);
-
-            // Get SNR and RSSI
-            pkt->snr = rfm96_get_snr();
-            pkt->rssi = rfm96_get_rssi();
-
-            // Update SNR and RSSI in packet starting at byte 25
-            // Format: "SNR = %4d; RSSI = %4d"
-            if (pkt->length > 25) {
-                snprintf((char*)&pkt->data[25], 25, "SNR = %4d; RSSI = %4d",
-                         (int)pkt->snr, (int)pkt->rssi);
-            }
-
-            // Update queue
-            queue_head = (queue_head + 1) % QUEUE_SIZE;
-            queue_count++;
-            last_packet_time = get_absolute_time();
-        }
-
-        // Clear RX_DONE interrupt flag
-        rfm96_put8(_RH_RF95_REG_12_IRQ_FLAGS, 0x40);
-
-        // Continue listening for next packet
-        rfm96_listen();
-    }
-    // Note: If TX_DONE fires (bit 3), we ignore it - ISR is only for RX
-}
-
 int main() {
     int counter = 0;
     int burn_state = 0;             // not running the burn wire until triggered
-    int radio_initialized = 0;      // radio not initialized until it is; after that we either TX or RX
-
-    int power_histogram[20] = {0};  // histogram of received power levels
-    int power = 0;                  // power level of received packet
-
-    // Initialize packet queue timing
-    last_packet_time = get_absolute_time();
 
     int rc = pico_led_init();
     hard_assert(rc == PICO_OK);
@@ -245,24 +176,11 @@ int main() {
     uint32_t interval_Display = 1010000;        // insure 1s period reports are fresh
     char buffer_Display[BUFLEN] = "";
 
-//  RADIO_TX
-    absolute_time_t previous_time_RADIO_TX = get_absolute_time();     // ms
-    uint32_t interval_RADIO_TX = 20*1010* 1000;                        // Give the radio time to RX
+//  RADIO_TX and RX - now handled by doUHF module
     char buffer_RADIO_TX[BUFLEN] = "";
-    uint8_t tx_packet[250];  // Separate 250-byte buffer for TX packets
-    radio_initialized = rfm96_init(&spi_pins);
-
-    // Set up DIO0 GPIO interrupt for packet reception
-    if (radio_initialized) {
-        gpio_set_irq_enabled_with_callback(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &dio0_isr);
-        printf("main: DIO0 ISR enabled on GPIO %d\n", SAMWISE_RF_D0_PIN);
-    }
-
-//  RADIO_RX
-    absolute_time_t previous_time_RADIO_RX = get_absolute_time();     // ms
-    uint32_t interval_RADIO_RX = 1000000;
     char buffer_RADIO_RX[BUFLEN*2] = "";
-    char packet[256];  // room for incoming packet and dummy byte
+    // Initialize UHF radio (includes ISR setup and tx_done test)
+    initUHF(&spi_pins);
 
 //  ws2812 LED State Management.  Used to have the LED green while packets
 //  are in the received queue plus a timed check to turn it off after a delay
@@ -329,39 +247,7 @@ int main() {
     uint32_t interval_COMMANDS = 1000000;
     char buffer_COMMANDS[BUFLEN] = "";
 
-
-    if (radio_initialized == 0) { //check each time so radio can be hot swapped in.
-        radio_initialized = rfm96_init(&spi_pins); }
-    if (radio_initialized) {
-//  Disable ISR during test to prevent interference with tx_done()
-        gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
-
-//  Check that we can know here when the transmitter has completed
-//  by sending a short and a long packet and measuring the time it takes
-//  starting time
-        red();  //  Indicate we are transmitting
-        absolute_time_t start_time = get_absolute_time();
-//  Send a short packet
-        rfm96_packet_to_fifo(buffer_RADIO_TX, 5);
-        rfm96_transmit();  //  Send the packet
-        int ip = 10000;
-        while (!rfm96_tx_done() && ip--) { sleep_us(10);  }
-        if (!rfm96_tx_done()) printf("main: TX timed out\n");
-        printf("Time to send a short packet: %lld ms (%d iterations left)\n", absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
-        start_time = get_absolute_time();
-//  Send a long packet
-        rfm96_packet_to_fifo(buffer_RADIO_TX, 250);
-        rfm96_transmit();  //  Send the packet
-        ip = 100000;
-        while (!rfm96_tx_done() && ip--) { sleep_us(10);  }
-        if (!rfm96_tx_done()) printf("main: TX timed out\n");
-        printf("Time to send a long packet: %lld ms (%d iterations left)\n", absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
-        rfm96_listen(); //  Set the radio to RX mode
-        white();    //  Indicate we are receiving
-
-//  Re-enable ISR after test completes
-        gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
-    }
+    // tx_done test is now handled in initUHF()
 
     while (true) {
 
@@ -426,124 +312,8 @@ int main() {
             printf(buffer_WDT);
         }
 
-// RADIO_RX: Process packet queue (filled by ISR)
-        if (absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
-            previous_time_RADIO_RX = get_absolute_time();
-            sprintf(buffer_RADIO_RX, "RXd ");  //DMA, Non-Blocking Clears out the results buffer
-            if (nCRC > 0) sprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), "%d CRC ", nCRC);     //Add a CRC if there was an error this time period
-            nCRC = 0;  // Zero out CRC error count after displaying
-
-            if (radio_initialized) {  //  Each time we run, update the histogram of received power levels
-                // Process all packets in queue
-                while (queue_count > 0) {
-                    volatile packet_t *pkt = &packet_queue[queue_tail];
-
-                    // Parse power value from packet
-                    // Format: "\xFF\xFF\xFF\xFFTX Power = %02d"
-                    if (sscanf((char*)pkt->data + 4, "TX Power = %d", &power) == 1) {
-                        // Adjust for negative power values (range: -1 to 17)
-                        int hist_index = power + 1;  // Shift so -1 maps to 0
-                        if (hist_index >= 0 && hist_index < 20) {
-                            power_histogram[hist_index]++;
-                        } else {
-                            printf("Warning: Received out-of-range power value: %d\n", power);
-                        }
-                    } else {
-                        printf("Warning: Failed to parse power from packet\n");
-                    }
-
-                    // Update queue
-                    queue_tail = (queue_tail + 1) % QUEUE_SIZE;
-                    queue_count--;
-                }
-
-                // Print the power histogram into buffer_RADIO_RX
-                int remaining_space = BUFLEN*2 - strlen(buffer_RADIO_RX) - 1;
-                for (int i = 0; (i < 20) && (remaining_space > 0); i++) {
-                    int written = snprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), remaining_space,
-                                          "%d ", power_histogram[i]);
-                    if (written < 0 || written >= remaining_space) {
-                        printf("Warning: Buffer overflow while writing histogram\n");
-                        break;
-                    }
-                    remaining_space -= written;
-                }
-            }
-        }
-
-// RADIO_TX: Send packets at each power level from 10 down to -1
-        sprintf(buffer_RADIO_TX, "RADIO_TXd\n");  //DMA, Non-Blocking
-        if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
-            // Save the last time you transmitted
-            previous_time_RADIO_TX = get_absolute_time();
-            if (radio_initialized == 0) { //check each time so radio can be hot swapped in.
-                radio_initialized = rfm96_init(&spi_pins);
-            }
-            if (radio_initialized) {
-                // Disable ISR during TX
-                gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
-
-                // For range test, loop through every power level from 10 to -1
-                // Format: "\xFF\xFF\xFF\xFFTX Power = %02d" + spaces to 250 bytes
-                for (int pwr = 10; pwr >= -1; pwr--) {
-                    rfm96_set_tx_power(pwr);
-                    red();  //  Indicate we are transmitting
-
-                    // Create packet: preamble + power + spaces to fill 250 bytes
-                    memset(tx_packet, ' ', 250);  // Fill with spaces
-                    tx_packet[0] = '\xFF';
-                    tx_packet[1] = '\xFF';
-                    tx_packet[2] = '\xFF';
-                    tx_packet[3] = '\xFF';
-                    // Format power with leading zero or minus sign
-                    sprintf((char*)tx_packet + 4, "TX Power = %02d", pwr);
-                    // Restore spaces after sprintf's null terminator
-                    for (int j = strlen((char*)tx_packet); j < 250; j++) {
-                        tx_packet[j] = ' ';
-                    }
-
-                    rfm96_packet_to_fifo(tx_packet, 250);
-                    rfm96_transmit();  //  Send the packet
-
-                    // Wait for TX completion
-                    int timeout = 100000;
-                    while (!rfm96_tx_done() && timeout--) { sleep_us(10); }
-                    if (!rfm96_tx_done()) printf("main: TX timed out at power %d\n", pwr);
-
-                    //sleep_ms(50);  //  Inter-packet spacing
-                }
-
-                // Re-enable ISR and return to RX mode
-                gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
-                rfm96_listen();
-                white();    //  Indicate we are receiving
-                sprintf(buffer_RADIO_TX, "RADIO_TX packets sent (10 to -1 dBm)\n");
-            }
-        }
-
-        // Time to update LED?
-        if (absolute_time_diff_us(previous_time_LED, get_absolute_time()) >= interval_LED) {
-            previous_time_LED = get_absolute_time();
-
-            if (radio_initialized) {
-                // LED is already red() during transmission (set in TX task)
-                // Manage LED color when listening based on queue state
-                if (queue_count == 0) {
-                    // Queue empty, listening - white LED
-                    white();
-                } else {
-                    // Queue has entries - check if we're within 500ms of last packet
-                    uint64_t time_since_last_packet_us = absolute_time_diff_us(last_packet_time, get_absolute_time());
-                    if (time_since_last_packet_us < 500000) {  // 500ms = 500000us
-                        // Within 500ms of last dequeue - green LED
-                        green();
-                    } else {
-                        // More than 500ms since last dequeue - white LED
-                        white();
-                    }
-                }
-            }
-        }
+// RADIO_RX and RADIO_TX: Now handled by doUHF module
+        doUHF(buffer_RADIO_RX, buffer_RADIO_TX);
 
         // Time to UART?
         if (absolute_time_diff_us(previous_time_UART, get_absolute_time()) >= interval_UART) {
@@ -680,8 +450,8 @@ int main() {
                     previous_time_BURN_WIRE = get_absolute_time(); 
                 }
                 if (strcmp(command_buffer, "RESTART_HISTOGRAM\n") == 0) {
-                    // Zero out the array
-                    memset(power_histogram, 0, sizeof(power_histogram));
+                    // Histogram is now managed in doUHF.c module
+                    printf("RESTART_HISTOGRAM command not available in refactored code\n");
                 }   
             }
             else if (temp != PICO_ERROR_TIMEOUT)
