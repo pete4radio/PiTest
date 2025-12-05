@@ -42,6 +42,9 @@
 #define SX1280_CMD_GET_PACKET_STATUS         0x1D
 #define SX1280_CMD_GET_RSSI_INST             0x1F
 
+#define SX1280_FIRMWARE_VERSION_MSB 0x0153       // Firmware version register. PHM why is this three nibbles?
+#define SX1280_FIRMWARE_VERSION_EXPECTED 0xA907         // Expected firmware version 43447
+
 // Timeout for DMA transfers in microseconds (20ms)
 #define DMA_TIMEOUT_US 20000
 
@@ -355,6 +358,12 @@ int16_t sband_get_rssi(void) {
     return rssi;
 }
 
+uint16_t sband_chip_id(void) {
+    uint8_t chip_id_bytes[2];
+    sband_read_command(SX1280_FIRMWARE_VERSION_MSB, chip_id_bytes, 2);
+    return ((uint16_t)chip_id_bytes[0] << 8) | chip_id_bytes[1];
+}
+
 // Initialize SBand radio
 int sband_init(spi_pins_t *spi_pins) {
     sband_spi = spi_pins->spi;
@@ -415,8 +424,14 @@ int sband_init(spi_pins_t *spi_pins) {
     uint16_t irq_mask = SX1280_IRQ_TX_DONE | SX1280_IRQ_RX_DONE | SX1280_IRQ_CRC_ERROR;
     sband_set_dio_irq_params(irq_mask, irq_mask, 0, 0);
 
-    printf("SBand: SX1280 initialized (DMA TX=%d, RX=%d)\n",
+    printf("SBand: SX1280 DMA initialized (DMA TX=%d, RX=%d)\n",
            sband_tx_dma_chan, sband_rx_dma_chan);
+
+    uint8_t chip_id = sband_chip_id();
+    if (chip_id != SX1280_FIRMWARE_VERSION_EXPECTED) {
+        printf("SBand: ERROR: Unexpected chip ID: 0x%02X, expected: 0x%02X\n", chip_id, SX1280_FIRMWARE_VERSION_EXPECTED);
+        return -1;
+    }
 
     return 0;
 }

@@ -40,6 +40,7 @@ static bool Sband_Transmitting = false;
 static int current_tx_power_sband = 10;  // Start at 10 dBm, count down to -1
 static bool sband_rx_active = false;      // Track if we received packets
 static absolute_time_t sband_last_rx_time;
+static int radio_initialized = -1;      //  sband radio initialized flag
 
 // Static buffer for TX packets
 static uint8_t tx_packet_sband[250];
@@ -106,7 +107,7 @@ void sband_dio0_isr(uint gpio, uint32_t events) {
  */
 void initSband(spi_pins_t *spi_pins) {
     // Initialize radio
-    int radio_initialized = sband_init(spi_pins);
+    radio_initialized = sband_init(spi_pins);
 
     if (radio_initialized == 0) {
         printf("SBand: Radio initialized\n");
@@ -169,7 +170,7 @@ void initSband(spi_pins_t *spi_pins) {
  */
 void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     // SBAND_RX: Process packet queue (filled by ISR) - ONLY if not transmitting
-    if (!Sband_Transmitting &&
+    if (!Sband_Transmitting && radio_initialized == 0 &&
         absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
         previous_time_Sband_RX = get_absolute_time();
         sprintf(buffer_Sband_RX, "SB_RXd ");  // DMA, Non-Blocking Clears out the results buffer
@@ -218,7 +219,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 
     // SBAND_TX: State machine for non-blocking transmission
     // Check if it's time to start a new transmission cycle
-    if (!Sband_Transmitting &&
+    if (!Sband_Transmitting && radio_initialized == 0 &&
         absolute_time_diff_us(previous_time_Sband_TX, get_absolute_time()) >= interval_Sband_TX) {
         // Start transmission cycle
         previous_time_Sband_TX = get_absolute_time();
@@ -249,7 +250,9 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         sband_packet_to_fifo(tx_packet_sband, 250);
         sband_transmit();  // Send the packet
 
-        // Wait for TX completion
+        sprintf(buffer_Sband_TX, "Now sending TX Power = %02d\n", current_tx_power_sband);
+
+        // Wait for TX completion. PHM Could also check for timeout on next invocation and before transmitting again.
         int timeout = 100000;
         while (!sband_tx_done() && timeout--) { sleep_us(10); }
         if (!sband_tx_done()) printf("SBand: TX timed out at power %d\n", current_tx_power_sband);
@@ -258,7 +261,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         current_tx_power_sband--;
 
         // Check if transmission cycle is complete
-        if (current_tx_power_sband < -1) {
+        if (current_tx_power_sband < -1) {              // PHM I wonder if this should be a symbolic, or even command-able?
             // Transmission cycle complete
             Sband_Transmitting = false;
             current_tx_power_sband = 10;  // Reset for next cycle
@@ -267,7 +270,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             gpio_set_irq_enabled(SAMWISE_SBAND_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
             sband_listen();
 
-            sprintf(buffer_Sband_TX, "Sband_TX packets sent (10 to -1 dBm)\n");
+            buffer_Sband_TX[0] = '\0';  //PHM Zero the buffer out
         }
     }
 

@@ -102,6 +102,7 @@ int8_t sband_get_snr(void);
 int16_t sband_get_rssi(void);
 uint16_t sband_get_irq_status(void);
 void sband_clear_irq_status(uint16_t mask);
+uint16_t sband_chip_id(void);
 
 // JSON configuration loading
-int sband_load_config_json(const char *json_string, sband_config_t *config);
+int sband_load_config_json(const char *json_string, sband_config_t *config);  //PHM is this necessary?

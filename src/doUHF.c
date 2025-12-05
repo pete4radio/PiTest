@@ -220,18 +220,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
     }
 
     // RADIO_TX: State machine for non-blocking transmission
-    // Check if it's time to start a new transmission cycle
-    if (!UHF_Transmitting &&
-        absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
-        // Start transmission cycle
-        previous_time_RADIO_TX = get_absolute_time();
-        UHF_Transmitting = true;
-        current_tx_power_uhf = 10;  // Start at 10 dBm
-
-        // Disable ISR during TX
-        gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
-    }
-
+    
     // If currently transmitting, send one packet per invocation
     if (UHF_Transmitting) {
         rfm96_set_tx_power(current_tx_power_uhf);
@@ -251,6 +240,9 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
 
         rfm96_packet_to_fifo(tx_packet, 250);
         rfm96_transmit();  // Send the packet
+        red();  // Indicate transmitting
+
+        sprintf(buffer_RADIO_TX, "doUHF: Now sending TX Power = %02d\n", current_tx_power_uhf);
 
         // Wait for TX completion
         int timeout = 100000;
@@ -269,9 +261,23 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
             // Re-enable ISR and return to RX mode
             gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
             rfm96_listen();
+            white();  // Indicate receiving
 
-            sprintf(buffer_RADIO_TX, "RADIO_TXdd packets sent (10 to -1 dBm)\n");
+            buffer_RADIO_TX[0] = '\0';  // Zero the buffer out
+            previous_time_RADIO_TX = get_absolute_time();   // Reset TX timer
         }
+    } // end if (UHF_Transmitting)
+
+    // Not UHF transmitting: Check if it's time to start a new transmission cycle
+    if (!UHF_Transmitting &&
+        absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
+        // Start transmission cycle
+        previous_time_RADIO_TX = get_absolute_time();
+        UHF_Transmitting = true;
+        current_tx_power_uhf = 10;  // Start at 10 dBm
+
+        // Disable ISR during TX
+        gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
     }
 
     // Update LED color contribution based on UHF state
