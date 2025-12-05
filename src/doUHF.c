@@ -39,8 +39,19 @@ static absolute_time_t previous_time_RADIO_TX;
 static uint32_t interval_RADIO_RX = 1000000;        // 1 second
 static uint32_t interval_RADIO_TX = 20*1010*1000;   // 20.2 seconds
 
+// State machine variables for non-blocking TX
+static bool UHF_Transmitting = false;
+static int current_tx_power_uhf = 10;  // Start at 10 dBm, count down to -1
+static bool uhf_rx_active = false;     // Track if we received packets
+static absolute_time_t uhf_last_rx_time;
+
 // Static buffer for TX packets
 static uint8_t tx_packet[250];
+
+// LED color contribution from UHF (for additive color mixing)
+uint8_t uhf_led_r = 0;
+uint8_t uhf_led_g = 0;
+uint8_t uhf_led_b = 0;
 
 /*
  * DIO0 GPIO Interrupt Service Routine
@@ -74,6 +85,10 @@ void dio0_isr(uint gpio, uint32_t events) {
             queue_head = (queue_head + 1) % QUEUE_SIZE;
             queue_count++;
             last_packet_time = get_absolute_time();
+
+            // Mark RX as active for LED color management
+            uhf_rx_active = true;
+            uhf_last_rx_time = get_absolute_time();
         }
 
         // Clear RX_DONE interrupt flag
@@ -153,8 +168,9 @@ void initUHF(spi_pins_t *spi_pins) {
  * Handles packet reception and transmission at regular intervals
  */
 void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
-    // RADIO_RX: Process packet queue (filled by ISR)
-    if (absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
+    // RADIO_RX: Process packet queue (filled by ISR) - ONLY if not transmitting
+    if (!UHF_Transmitting &&
+        absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
         previous_time_RADIO_RX = get_absolute_time();
         sprintf(buffer_RADIO_RX, "RXdd ");  // DMA, Non-Blocking Clears out the results buffer
 
@@ -203,46 +219,76 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         }
     }
 
-    // RADIO_TX: Send packets at each power level from 10 down to -1
-    if (absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
-        // Save the last time you transmitted
+    // RADIO_TX: State machine for non-blocking transmission
+    // Check if it's time to start a new transmission cycle
+    if (!UHF_Transmitting &&
+        absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
+        // Start transmission cycle
         previous_time_RADIO_TX = get_absolute_time();
+        UHF_Transmitting = true;
+        current_tx_power_uhf = 10;  // Start at 10 dBm
 
         // Disable ISR during TX
         gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
+    }
 
-        // For range test, loop through every power level from 10 to -1
-        // Format: "\xFF\xFF\xFF\xFFTX Power = %02d" + spaces to 250 bytes
-        for (int pwr = 10; pwr >= -1; pwr--) {
-            rfm96_set_tx_power(pwr);
-            red();  // Indicate we are transmitting
+    // If currently transmitting, send one packet per invocation
+    if (UHF_Transmitting) {
+        rfm96_set_tx_power(current_tx_power_uhf);
 
-            // Create packet: preamble + power + spaces to fill 250 bytes
-            memset(tx_packet, ' ', 250);  // Fill with spaces
-            tx_packet[0] = '\xFF';
-            tx_packet[1] = '\xFF';
-            tx_packet[2] = '\xFF';
-            tx_packet[3] = '\xFF';
-            // Format power with leading zero or minus sign
-            sprintf((char*)tx_packet + 4, "TX Power = %02d", pwr);
-            // Restore spaces after sprintf's null terminator
-            for (int j = strlen((char*)tx_packet); j < 250; j++) {
-                tx_packet[j] = ' ';
-            }
-
-            rfm96_packet_to_fifo(tx_packet, 250);
-            rfm96_transmit();  // Send the packet
-
-            // Wait for TX completion
-            int timeout = 100000;
-            while (!rfm96_tx_done() && timeout--) { sleep_us(10); }
-            if (!rfm96_tx_done()) printf("UHF: TX timed out at power %d\n", pwr);
+        // Create packet: preamble + power + spaces to fill 250 bytes
+        memset(tx_packet, ' ', 250);  // Fill with spaces
+        tx_packet[0] = '\xFF';
+        tx_packet[1] = '\xFF';
+        tx_packet[2] = '\xFF';
+        tx_packet[3] = '\xFF';
+        // Format power with leading zero or minus sign
+        sprintf((char*)tx_packet + 4, "TX Power = %02d", current_tx_power_uhf);
+        // Restore spaces after sprintf's null terminator
+        for (int j = strlen((char*)tx_packet); j < 250; j++) {
+            tx_packet[j] = ' ';
         }
 
-        // Re-enable ISR and return to RX mode
-        gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
-        rfm96_listen();
-        white();    // Indicate we are receiving
-        sprintf(buffer_RADIO_TX, "RADIO_TXdd packets sent (10 to -1 dBm)\n");
+        rfm96_packet_to_fifo(tx_packet, 250);
+        rfm96_transmit();  // Send the packet
+
+        // Wait for TX completion
+        int timeout = 100000;
+        while (!rfm96_tx_done() && timeout--) { sleep_us(10); }
+        if (!rfm96_tx_done()) printf("UHF: TX timed out at power %d\n", current_tx_power_uhf);
+
+        // Move to next power level
+        current_tx_power_uhf--;
+
+        // Check if transmission cycle is complete
+        if (current_tx_power_uhf < -1) {
+            // Transmission cycle complete
+            UHF_Transmitting = false;
+            current_tx_power_uhf = 10;  // Reset for next cycle
+
+            // Re-enable ISR and return to RX mode
+            gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
+            rfm96_listen();
+
+            sprintf(buffer_RADIO_TX, "RADIO_TXdd packets sent (10 to -1 dBm)\n");
+        }
+    }
+
+    // Update LED color contribution based on UHF state
+    if (UHF_Transmitting) {
+        // Transmitting: Red
+        uhf_led_r = 0x10;
+        uhf_led_g = 0;
+        uhf_led_b = 0;
+    } else if (uhf_rx_active && absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) < 2000000) {
+        // Receiving (within 2 seconds of last packet): Green
+        uhf_led_r = 0;
+        uhf_led_g = 0x08;
+        uhf_led_b = 0;
+    } else {
+        // Listening: Yellow (Red + Green)
+        uhf_led_r = 0x10;
+        uhf_led_g = 0x08;
+        uhf_led_b = 0;
     }
 }

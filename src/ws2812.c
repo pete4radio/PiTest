@@ -84,6 +84,41 @@ void white(){
     }
 }
 
+// UHF Listening - Yellow (Red + Green)
+void yellow(){
+    for (int i = 0; i < NUM_PIXELS; ++i) {
+        put_pixel(global_pio, global_sm, urgb_u32(0x10, 0x08, 0));
+    }
+}
+
+// SBand Listening - Cyan (Green + Blue)
+void cyan(){
+    for (int i = 0; i < NUM_PIXELS; ++i) {
+        put_pixel(global_pio, global_sm, urgb_u32(0, 0x08, 0x10));
+    }
+}
+
+// SBand Receiving - Magenta (Red + Blue)
+void magenta(){
+    for (int i = 0; i < NUM_PIXELS; ++i) {
+        put_pixel(global_pio, global_sm, urgb_u32(0x10, 0, 0x10));
+    }
+}
+
+// SBand Transmitting - Blue
+void blue(){
+    for (int i = 0; i < NUM_PIXELS; ++i) {
+        put_pixel(global_pio, global_sm, urgb_u32(0, 0, 0x10));
+    }
+}
+
+// Set LED to specific RGB color (for additive color mixing)
+void set_led_color(uint8_t r, uint8_t g, uint8_t b){
+    for (int i = 0; i < NUM_PIXELS; ++i) {
+        put_pixel(global_pio, global_sm, urgb_u32(r, g, b));
+    }
+}
+
 
 int ws2812_init() {
     //set_sys_clock_48();

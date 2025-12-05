@@ -35,8 +35,19 @@ static absolute_time_t previous_time_Sband_TX;
 static uint32_t interval_Sband_RX = 1000000;        // 1 second
 static uint32_t interval_Sband_TX = 20*1010*1000;   // 20.2 seconds
 
+// State machine variables for non-blocking TX
+static bool Sband_Transmitting = false;
+static int current_tx_power_sband = 10;  // Start at 10 dBm, count down to -1
+static bool sband_rx_active = false;      // Track if we received packets
+static absolute_time_t sband_last_rx_time;
+
 // Static buffer for TX packets
 static uint8_t tx_packet_sband[250];
+
+// LED color contribution from SBand (for additive color mixing)
+uint8_t sband_led_r = 0;
+uint8_t sband_led_g = 0;
+uint8_t sband_led_b = 0;
 
 /*
  * DIO0 GPIO Interrupt Service Routine for SBand
@@ -70,6 +81,10 @@ void sband_dio0_isr(uint gpio, uint32_t events) {
             queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;
             queue_count_sband++;
             last_packet_time_sband = get_absolute_time();
+
+            // Mark RX as active for LED color management
+            sband_rx_active = true;
+            sband_last_rx_time = get_absolute_time();
         }
 
         // Clear RX_DONE interrupt
@@ -153,8 +168,9 @@ void initSband(spi_pins_t *spi_pins) {
  * Handles packet reception and transmission at regular intervals
  */
 void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
-    // SBAND_RX: Process packet queue (filled by ISR)
-    if (absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
+    // SBAND_RX: Process packet queue (filled by ISR) - ONLY if not transmitting
+    if (!Sband_Transmitting &&
+        absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
         previous_time_Sband_RX = get_absolute_time();
         sprintf(buffer_Sband_RX, "SB_RXd ");  // DMA, Non-Blocking Clears out the results buffer
 
@@ -200,47 +216,76 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         }
     }
 
-    // SBAND_TX: Send packets at each power level from 10 down to -1
-    if (absolute_time_diff_us(previous_time_Sband_TX, get_absolute_time()) >= interval_Sband_TX) {
-        // Save the last time you transmitted
+    // SBAND_TX: State machine for non-blocking transmission
+    // Check if it's time to start a new transmission cycle
+    if (!Sband_Transmitting &&
+        absolute_time_diff_us(previous_time_Sband_TX, get_absolute_time()) >= interval_Sband_TX) {
+        // Start transmission cycle
         previous_time_Sband_TX = get_absolute_time();
+        Sband_Transmitting = true;
+        current_tx_power_sband = 10;  // Start at 10 dBm
 
         // Disable ISR during TX
         gpio_set_irq_enabled(SAMWISE_SBAND_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
+    }
 
-        // For range test, loop through every power level from 10 to -1
-        // SX1280 range is -18 to +13 dBm, but we'll use the same 10 to -1 range for consistency
-        // Format: "\xFF\xFF\xFF\xFFTX Power = %02d" + spaces to 250 bytes
-        for (int pwr = 10; pwr >= -1; pwr--) {
-            sband_set_tx_params(pwr, 0x02);  // Set power, ramp 20μs
-            red();  // Indicate we are transmitting
+    // If currently transmitting, send one packet per invocation
+    if (Sband_Transmitting) {
+        sband_set_tx_params(current_tx_power_sband, 0x02);  // Set power, ramp 20μs
 
-            // Create packet: preamble + power + spaces to fill 250 bytes
-            memset(tx_packet_sband, ' ', 250);  // Fill with spaces
-            tx_packet_sband[0] = '\xFF';
-            tx_packet_sband[1] = '\xFF';
-            tx_packet_sband[2] = '\xFF';
-            tx_packet_sband[3] = '\xFF';
-            // Format power with leading zero or minus sign
-            sprintf((char*)tx_packet_sband + 4, "TX Power = %02d", pwr);
-            // Restore spaces after sprintf's null terminator
-            for (int j = strlen((char*)tx_packet_sband); j < 250; j++) {
-                tx_packet_sband[j] = ' ';
-            }
-
-            sband_packet_to_fifo(tx_packet_sband, 250);
-            sband_transmit();  // Send the packet
-
-            // Wait for TX completion
-            int timeout = 100000;
-            while (!sband_tx_done() && timeout--) { sleep_us(10); }
-            if (!sband_tx_done()) printf("SBand: TX timed out at power %d\n", pwr);
+        // Create packet: preamble + power + spaces to fill 250 bytes
+        memset(tx_packet_sband, ' ', 250);  // Fill with spaces
+        tx_packet_sband[0] = '\xFF';
+        tx_packet_sband[1] = '\xFF';
+        tx_packet_sband[2] = '\xFF';
+        tx_packet_sband[3] = '\xFF';
+        // Format power with leading zero or minus sign
+        sprintf((char*)tx_packet_sband + 4, "TX Power = %02d", current_tx_power_sband);
+        // Restore spaces after sprintf's null terminator
+        for (int j = strlen((char*)tx_packet_sband); j < 250; j++) {
+            tx_packet_sband[j] = ' ';
         }
 
-        // Re-enable ISR and return to RX mode
-        gpio_set_irq_enabled(SAMWISE_SBAND_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
-        sband_listen();
-        white();    // Indicate we are receiving
-        sprintf(buffer_Sband_TX, "Sband_TX packets sent (10 to -1 dBm)\n");
+        sband_packet_to_fifo(tx_packet_sband, 250);
+        sband_transmit();  // Send the packet
+
+        // Wait for TX completion
+        int timeout = 100000;
+        while (!sband_tx_done() && timeout--) { sleep_us(10); }
+        if (!sband_tx_done()) printf("SBand: TX timed out at power %d\n", current_tx_power_sband);
+
+        // Move to next power level
+        current_tx_power_sband--;
+
+        // Check if transmission cycle is complete
+        if (current_tx_power_sband < -1) {
+            // Transmission cycle complete
+            Sband_Transmitting = false;
+            current_tx_power_sband = 10;  // Reset for next cycle
+
+            // Re-enable ISR and return to RX mode
+            gpio_set_irq_enabled(SAMWISE_SBAND_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
+            sband_listen();
+
+            sprintf(buffer_Sband_TX, "Sband_TX packets sent (10 to -1 dBm)\n");
+        }
+    }
+
+    // Update LED color contribution based on SBand state
+    if (Sband_Transmitting) {
+        // Transmitting: Blue
+        sband_led_r = 0;
+        sband_led_g = 0;
+        sband_led_b = 0x10;
+    } else if (sband_rx_active && absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) < 2000000) {
+        // Receiving (within 2 seconds of last packet): Magenta (Red + Blue)
+        sband_led_r = 0x10;
+        sband_led_g = 0;
+        sband_led_b = 0x10;
+    } else {
+        // Listening: Cyan (Green + Blue)
+        sband_led_r = 0;
+        sband_led_g = 0x08;
+        sband_led_b = 0x10;
     }
 }

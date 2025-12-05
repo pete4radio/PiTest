@@ -11,3 +11,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX);
 
 // ISR handler (called by GPIO interrupt)
 void dio0_isr(uint gpio, uint32_t events);
+
+// LED color contribution from UHF (for additive color mixing)
+extern uint8_t uhf_led_r;
+extern uint8_t uhf_led_g;
+extern uint8_t uhf_led_b;

@@ -350,6 +350,16 @@ int main() {
         // SBand operations
         doSband(buffer_Sband_RX, buffer_Sband_TX);
 
+        // Update LED with additive color mixing from both radios
+        uint8_t combined_r = uhf_led_r + sband_led_r;
+        uint8_t combined_g = uhf_led_g + sband_led_g;
+        uint8_t combined_b = uhf_led_b + sband_led_b;
+        // Cap at 0xFF to prevent overflow
+        if (combined_r > 0xFF) combined_r = 0xFF;
+        if (combined_g > 0xFF) combined_g = 0xFF;
+        if (combined_b > 0xFF) combined_b = 0xFF;
+        set_led_color(combined_r, combined_g, combined_b);
+
         // Time to UART?
         if (absolute_time_diff_us(previous_time_UART, get_absolute_time()) >= interval_UART) {
             // Save the last time you blinked checked UART loopback
