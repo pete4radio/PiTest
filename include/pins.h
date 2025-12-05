@@ -32,6 +32,7 @@
     #define SAMWISE_MPPT_SCL_PIN (13)
 
     #define SAMWISE_WATCHDOG_FEED_PIN (6)
+    #define SAMWISE_BURNWIRE_PIN (6)
 
 #else
 

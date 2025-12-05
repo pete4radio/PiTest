@@ -175,6 +175,9 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
                 int hist_index = power + 1;  // Shift so -1 maps to 0
                 if (hist_index >= 0 && hist_index < 20) {
                     power_histogram[hist_index]++;
+// PHM:  We know when the we will receive the last packet, if we hear it
+//      So let's set the transmitter to start after that.
+//      previous_time_RADIO_TX = get_absolute_time() - interval_RADIO_TX + TX_DURATION * hist_index + 100000; // 0.1s after last RX
                 } else {
                     printf("UHF Warning: Received out-of-range power value: %d\n", power);
                 }

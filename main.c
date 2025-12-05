@@ -1,9 +1,11 @@
 
 
 /**
- * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+ *  Pi test provides an easy to build, easy to modify bring up software for the avionics team
+ * to verify hardware before passing it to the software team for integration with the flight software
+ * and structures for assembling the satellite.
  *
- * SPDX-License-Identifier: BSD-3-Clause
+ * To build for SAMWISE, Comment out the definition for PICO in CMakeLists.txt
  */
 
 #include <stdio.h>
@@ -16,9 +18,8 @@
 #include "hardware/irq.h"
 #include "hardware/spi.h"
 #include "pins.h"
-//#include "tusb.h"
+//#include "tusb.h"                     // TinyUSB header file.  PHM: Why is this commented out?
 
-// from logger.h
 #include "pico/printf.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
@@ -46,40 +47,40 @@
 char buffer_UART[BUFLEN] = {0}; // Define the buffer
 char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 
-// Pico W devices use a GPIO on the WIFI chip for the LED,
+// Pico W devices use a GPIO on the WIFI chip for the LED,  //PHM remove
 // so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
 #ifdef CYW43_WL_GPIO_LED_PIN
 #include "pico/cyw43_arch.h"
 #endif
 
 //#ifndef PICO
-// Ensure that PICO_RP2350A is undefined PICUBED builds.
-// boards/samwise_picubed.h or P3_6b.h should undefine it.
+// Ensure that PICO_RP2350A is undefined for PiCubed builds.
+// pete4radio/boards/SAMWISE.h undefine it.
 // The CMakeLists.txt file points to this file for the board definition.
-//Check the pin is compatible with the platform
+// Check the pin is compatible with the platform
 //#if 44 >= NUM_BANK0_GPIOS
 //   #error "Recompile specifying the RP2350B platform SAMWISE"
 //    #endif
 //#endif
 
-
-#define PIN_SDA 4
-#define PIN_SCL 5
-#define PIN_BURN_WIRE 6
+//PHM these should be in pins.h but it appears they are unused
+//#define PIN_SDA 4
+//#define PIN_SCL 5
+//#define SAMWISE_BURNWIRE_PIN 6
 
 char command_buffer[BUFLEN] = "";
 char response_buffer[BUFLEN] = "";
-int p = 0;  // pointer to the command buffer
+size_t cmd_idx = 0;  // index into command_buffer
 int rfm96_init(spi_pins_t *spi_pins);   //declaration for init which lives in rfm96.c
 //  define storage and load them with values from pins.h
 spi_pins_t spi_pins =
 {
-    .RESET = SAMWISE_RF_RST_PIN,
-    .CIPO = SAMWISE_RF_MISO_PIN,
-    .COPI = SAMWISE_RF_MOSI_PIN,
-    .SCK = SAMWISE_RF_SCK_PIN,
-    .CS = SAMWISE_RF_CS_PIN,
-    .D0 = SAMWISE_RF_D0_PIN,
+    .RESET = SAMWISE_RF_RST_PIN,    // UHF reset pin
+    .CIPO = SAMWISE_RF_MISO_PIN,    // Both Radios ...
+    .COPI = SAMWISE_RF_MOSI_PIN,    // ...Share ...
+    .SCK = SAMWISE_RF_SCK_PIN,      // ...the SPI bus.
+    .CS = SAMWISE_RF_CS_PIN,        // UHF chip select
+    .D0 = SAMWISE_RF_D0_PIN         // UHF interrupt pin,
     .spi = spi0
 };
 
@@ -99,7 +100,7 @@ bool reserved_addr(uint8_t addr) {
   return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
 }
 
-// Perform initialisation of the tiny LED on a GPIO
+// Perform initialisation of the tiny LED on a PICO
 int pico_led_init(void) {
 #if defined(PICO_DEFAULT_LED_PIN)
     // A device like Pico that uses a GPIO for the LED will define PICO_DEFAULT_LED_PIN
@@ -115,8 +116,8 @@ int pico_led_init(void) {
 
 // brurn wire GPIO initialization
 int pico_burn_wire_init(void) {
-    gpio_init(PIN_BURN_WIRE);
-    gpio_set_dir(PIN_BURN_WIRE, GPIO_OUT);
+    gpio_init(SAMWISE_BURNWIRE_PIN);
+    gpio_set_dir(SAMWISE_BURNWIRE_PIN, GPIO_OUT);
     return PICO_OK;
 }
 
@@ -162,11 +163,11 @@ int main() {
     stdio_init_all();
     //  see https://forums.raspberrypi.com/viewtopic.php?t=300136
     printf("main: waiting for USB to connect\n");
-    int i = 10;
+    int i = 100;
     while (!stdio_usb_connected() && i--) { sleep_ms(100);  }
     printf("USB_connected or timed out\n");
 
-//  Initialize the variables for each test 
+//  Initialize the timing and storage variables for each test in the superloop
 
 //  LED ON
     absolute_time_t previous_time_LED_ON = get_absolute_time();     // ms
@@ -190,7 +191,7 @@ int main() {
     char buffer_Display[BUFLEN] = "";
 
 //  RADIO_TX and RX - now handled by doUHF module
-    char buffer_RADIO_TX[BUFLEN] = "";
+    char buffer_RADIO_TX[BUFLEN] = "";      //PHM why clear the buffers?
     char buffer_RADIO_RX[BUFLEN*2] = "";
     // SBand buffers
     char buffer_Sband_RX[BUFLEN*2] = "";
@@ -203,8 +204,9 @@ int main() {
     printf("Initializing SBand radio...\n");
     initSband(&spi_pins_sband);
 
-//  ws2812 LED State Management.  Used to have the LED green while packets
-//  are in the received queue plus a timed check to turn it off after a delay
+//  ws2812 LED State Management.  Neopixel LED is white while listening,
+//  green while packets are in the received queue and red during transmit plus a bit extra
+//  for visibility
     absolute_time_t previous_time_LED = get_absolute_time();
     uint32_t interval_LED = 100000;  // Check LED state every 100ms
     bool led_green_active = false;
@@ -446,12 +448,11 @@ int main() {
             }   
         }
 
-
         // time to BURN_WIRE ?
         if (absolute_time_diff_us(previous_time_BURN_WIRE, get_absolute_time()) >= interval_BURN_WIRE) {
             burn_state = 0;
             // set gpio to burn wire to 0
-            gpio_put(PIN_BURN_WIRE, 0);
+            gpio_put(SAMWISE_BURNWIRE_PIN, 0);
             sprintf(buffer_BURN_WIRE, "BURN_WIRE off\n");
         }
 
@@ -471,18 +472,18 @@ int main() {
             previous_time_COMMANDS = get_absolute_time();  
         // is there a character in the serial input buffer?  get it without waiting
         int temp = getchar_timeout_us(100);
-            if (p > 0 && temp == PICO_ERROR_TIMEOUT) {  // We've got a command, which come in bursts
-                command_buffer[p++] = '\0';    // Null terminate the command buffer
+            if (cmd_idx > 0 && temp == PICO_ERROR_TIMEOUT) {  // We've got a command, which come in bursts
+                command_buffer[cmd_idx++] = '\0';             // Null terminate the command buffer
                 p = 0;                      // Reset the pointer    
             // Process the command
                 if (strcmp(command_buffer, "BURN_ON") == 0) {
                     burn_state = 1;
                     sprintf(response_buffer, "BURN_WIRE was turned on\n");
             // set gpio to burn wire to 1
-                    gpio_put(PIN_BURN_WIRE, 1);
+                    gpio_put(SAMWISE_BURNWIRE_PIN, 1);
                     previous_time_BURN_WIRE = get_absolute_time(); 
                 }
-                if (strcmp(command_buffer, "RESTART_HISTOGRAM\n") == 0) {
+                if (strcmp(command_buffer, "RESTART_HISTOGRAM\n") == 0) { //PHM
                     // Histogram is now managed in doUHF.c module
                     printf("RESTART_HISTOGRAM command not available in refactored code\n");
                 }   
