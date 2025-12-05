@@ -45,6 +45,9 @@
 // Timeout for DMA transfers in microseconds (20ms)
 #define DMA_TIMEOUT_US 20000
 
+// SX1280 SPI baudrate (can go up to 18 MHz, using 5 MHz for reliability)
+#define SX1280_SPI_BAUDRATE (5 * 1000 * 1000)
+
 // Global SPI state
 static spi_inst_t *sband_spi = NULL;
 static uint8_t sband_cs_pin;
@@ -372,7 +375,17 @@ int sband_init(spi_pins_t *spi_pins) {
     gpio_set_dir(sband_d0_pin, GPIO_IN);
     gpio_pull_down(sband_d0_pin);
 
-    // SPI already initialized by UHF, just claim DMA channels
+    // Initialize SPI1 for SBand (separate bus from UHF's SPI0)
+    gpio_set_function(SAMWISE_SBAND_SCK_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(SAMWISE_SBAND_MOSI_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(SAMWISE_SBAND_MISO_PIN, GPIO_FUNC_SPI);
+
+    // Initialize SPI1 at 5 MHz
+    // SX1280 supports CPOL = 0, CPHA = 0 (mode 0), MSB first
+    spi_init(sband_spi, SX1280_SPI_BAUDRATE);
+    spi_set_format(sband_spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+
+    // Claim DMA channels for SPI transfers
     sband_tx_dma_chan = dma_claim_unused_channel(true);
     sband_rx_dma_chan = dma_claim_unused_channel(true);
 

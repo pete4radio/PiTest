@@ -76,23 +76,23 @@ int rfm96_init(spi_pins_t *spi_pins);   //declaration for init which lives in rf
 spi_pins_t spi_pins =
 {
     .RESET = SAMWISE_RF_RST_PIN,    // UHF reset pin
-    .CIPO = SAMWISE_RF_MISO_PIN,    // Both Radios ...
-    .COPI = SAMWISE_RF_MOSI_PIN,    // ...Share ...
-    .SCK = SAMWISE_RF_SCK_PIN,      // ...the SPI bus.
-    .CS = SAMWISE_RF_CS_PIN,        // UHF chip select
-    .D0 = SAMWISE_RF_D0_PIN         // UHF interrupt pin,
-    .spi = spi0
+    .CIPO = SAMWISE_RF_MISO_PIN,    // UHF MISO on GPIO 16
+    .COPI = SAMWISE_RF_MOSI_PIN,    // UHF MOSI on GPIO 19
+    .SCK = SAMWISE_RF_SCK_PIN,      // UHF SCK on GPIO 18
+    .CS = SAMWISE_RF_CS_PIN,        // UHF chip select on GPIO 17
+    .D0 = SAMWISE_RF_D0_PIN,        // UHF interrupt on GPIO 20
+    .spi = spi0                     // UHF uses SPI0
 };
 
-// SBand SPI pins (shared bus with UHF)
+// SBand SPI pins (separate SPI1 bus)
 spi_pins_t spi_pins_sband = {
-    .RESET = SAMWISE_SBAND_RST_PIN,
-    .CIPO = SAMWISE_RF_MISO_PIN,     // Same MISO as UHF
-    .COPI = SAMWISE_RF_MOSI_PIN,     // Same MOSI as UHF
-    .SCK = SAMWISE_RF_SCK_PIN,       // Same SCK as UHF
-    .CS = SAMWISE_SBAND_CS_PIN,      // Different CS
-    .D0 = SAMWISE_SBAND_D0_PIN,      // Different D0
-    .spi = spi0                       // Same SPI instance
+    .RESET = SAMWISE_SBAND_RST_PIN,  // SBand reset on GPIO 10
+    .CIPO = SAMWISE_SBAND_MISO_PIN,  // SBand MISO on GPIO 28
+    .COPI = SAMWISE_SBAND_MOSI_PIN,  // SBand MOSI on GPIO 27
+    .SCK = SAMWISE_SBAND_SCK_PIN,    // SBand SCK on GPIO 26
+    .CS = SAMWISE_SBAND_CS_PIN,      // SBand CS on GPIO 14
+    .D0 = SAMWISE_SBAND_D0_PIN,      // SBand interrupt on GPIO 15
+    .spi = spi1                       // Separate SPI1 instance
 };
 
 // for the I2C scanner, these I2C addresses are reserved
@@ -473,8 +473,8 @@ int main() {
         // is there a character in the serial input buffer?  get it without waiting
         int temp = getchar_timeout_us(100);
             if (cmd_idx > 0 && temp == PICO_ERROR_TIMEOUT) {  // We've got a command, which come in bursts
-                command_buffer[cmd_idx++] = '\0';             // Null terminate the command buffer
-                p = 0;                      // Reset the pointer    
+                command_buffer[cmd_idx] = '\0';               // Null terminate the command buffer
+                cmd_idx = 0;                                   // Reset the command index    
             // Process the command
                 if (strcmp(command_buffer, "BURN_ON") == 0) {
                     burn_state = 1;
@@ -490,7 +490,7 @@ int main() {
             }
             else if (temp != PICO_ERROR_TIMEOUT)
             //  add character to command buffer
-                command_buffer[p++] = temp;   
+                command_buffer[cmd_idx++] = temp;   
             sprintf(buffer_COMMANDS, "COMMANDS last command:%s; response:%s\n", command_buffer, response_buffer);
         }
 
