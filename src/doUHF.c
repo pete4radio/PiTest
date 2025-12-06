@@ -84,7 +84,8 @@ void dio0_isr(uint gpio, uint32_t events) {
             // Update queue
             queue_head = (queue_head + 1) % QUEUE_SIZE;
             queue_count++;
-            last_packet_time = get_absolute_time();
+            last_packet_time = get_absolute_time();   //PHM probably don't need 2 of these
+            green();
 
             // Mark RX as active for LED color management
             uhf_rx_active = true;
@@ -193,7 +194,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
                     power_histogram[hist_index]++;
 // PHM:  We know when the we will receive the last packet, if we hear it
 //      So let's set the transmitter to start after that.
-//      previous_time_RADIO_TX = get_absolute_time() - interval_RADIO_TX + TX_DURATION * hist_index + 100000; // 0.1s after last RX
+                    previous_time_RADIO_TX = get_absolute_time() - interval_RADIO_TX +\
+                     1050000* hist_index + 100000; // 0.1s after last RX
                 } else {
                     printf("UHF Warning: Received out-of-range power value: %d\n", power);
                 }
@@ -256,7 +258,9 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         if (current_tx_power_uhf < -1) {
             // Transmission cycle complete
             UHF_Transmitting = false;
-            current_tx_power_uhf = 10;  // Reset for next cycle
+            current_tx_power_uhf = 10;  // Reset for next cycle.
+        //  If the power supply can provide 1.5A, set this and the Sband 
+        //  parameter of the same name to 20.  PHM
 
             // Re-enable ISR and return to RX mode
             gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
@@ -286,8 +290,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         uhf_led_r = 0x10;
         uhf_led_g = 0;
         uhf_led_b = 0;
-    } else if (uhf_rx_active && absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) < 2000000) {
-        // Receiving (within 2 seconds of last packet): Green
+    } else if (uhf_rx_active && absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) < 500000) {
+        // Receiving (within .5 seconds of last packet): Green
         uhf_led_r = 0;
         uhf_led_g = 0x08;
         uhf_led_b = 0;
