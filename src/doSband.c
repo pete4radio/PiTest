@@ -6,6 +6,19 @@
 #include "ws2812.h"  // For LED control (red, white)
 #include "main_gps_uart_shared_buffer.h"  // For BUFLEN definition
 
+/*  
+
+Called by main.c and calling sband.c, this function implements SBand superloop 
+functionality for PiTest.
+
+RX is DIO0 ISR driven, using a packet queue to fill a histogram of transmitted power levels.
+Non-blocking TX is implemented sends one packet at new power level each invocation.
+LoRa Parameters are hard coded.
+Lively LED color indication of received packets and transmissions.
+
+*/
+
+
 // Packet queue structure definitions (for ISR access)
 #define QUEUE_SIZE_SBAND 15
 #define PACKET_SIZE_SBAND 256
@@ -109,6 +122,12 @@ void initSband(spi_pins_t *spi_pins) {
     // Initialize radio
     radio_initialized = sband_init(spi_pins);
 
+    //For Hardware Debugging
+    while (radio_initialized = sband_init(spi_pins) != PICO_OK) {
+        printf("doSBand: Radio init failed, retrying in 0.1 second...\n");
+        sleep_ms(100);
+    }
+
     if (radio_initialized == 0) {
         printf("SBand: Radio initialized\n");
 
@@ -159,9 +178,9 @@ void initSband(spi_pins_t *spi_pins) {
     }
 
     // Initialize timing variables
-    previous_time_Sband_RX = get_absolute_time();
-    previous_time_Sband_TX = get_absolute_time();
-    last_packet_time_sband = get_absolute_time();
+    previous_time_Sband_RX = get_absolute_time();   //  Baseline for checking the RX queue
+    previous_time_Sband_TX = get_absolute_time();   //  Baseline for starting TX cycles
+    last_packet_time_sband = get_absolute_time();   //  Baseline for LED green (packet received) blink duration
 }
 
 /*
@@ -173,11 +192,11 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     if (!Sband_Transmitting && radio_initialized == 0 &&
         absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
         previous_time_Sband_RX = get_absolute_time();
-        sprintf(buffer_Sband_RX, "SB_RXd ");  // DMA, Non-Blocking Clears out the results buffer
+        sprintf(buffer_Sband_RX, "SB_RXd ");  // using suffixes for version identification
 
         if (nCRC_sband > 0) {
             sprintf(buffer_Sband_RX + strlen(buffer_Sband_RX), "%d CRC ", nCRC_sband);
-            nCRC_sband = 0;  // Zero out CRC error count after displaying
+            nCRC_sband = 0;  // Zero out CRC error count after displaying  PHM this is probably not working right
         }
 
         // Process all packets in queue

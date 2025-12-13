@@ -1122,7 +1122,15 @@ uint8_t rfm96_get_mode()
     // 0x42 is the Chip ID register and the value returned should be 0x12
     uint8_t v = 0;
     printf((reg_read(0x42, &v, 1) == 1) ? "RFM9X Chip ID read success\n" : "RFM9X Chip ID read failed\n");
-    printf((v == 0x12) ? "RFM9X version check success\n" : "RFM9X version 0x12 check failed, returned %02x\n", v);
+//  If version check fails, Let user know and de-allocate DMAs
+    if (v == 0x12) {
+        printf("RFM9X Chip ID value check success: 0x%02x\n", v);
+    } else {
+        printf("RFM9X Chip ID check failed, expected 0x12 but got 0x%02x\n", v);
+        dma_channel_unclaim(tx_dma_chan);
+        dma_channel_unclaim(rx_dma_chan);
+        return 1;   // failure
+    }
 
     // Setup busy line, which signals when RX packet received or TX packet sent
      gpio_init(SAMWISE_RF_D0_PIN);

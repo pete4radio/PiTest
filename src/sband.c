@@ -430,6 +430,10 @@ int sband_init(spi_pins_t *spi_pins) {
     uint8_t chip_id = sband_chip_id();
     if (chip_id != SX1280_FIRMWARE_VERSION_EXPECTED) {
         printf("SBand: ERROR: Unexpected chip ID: 0x%02X, expected: 0x%02X\n", chip_id, SX1280_FIRMWARE_VERSION_EXPECTED);
+
+        // release the two DMA channels before returning error
+        dma_channel_unclaim(sband_tx_dma_chan);
+        dma_channel_unclaim(sband_rx_dma_chan);        
         return -1;
     }
 
