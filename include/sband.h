@@ -102,7 +102,13 @@ int8_t sband_get_snr(void);
 int16_t sband_get_rssi(void);
 uint16_t sband_get_irq_status(void);
 void sband_clear_irq_status(uint16_t mask);
-uint16_t sband_chip_id(void);
+
+// Chip verification (reads 16-byte version string from register 0x01F0)
+int sband_verify_chip(char *version_out);
+
+// Getter functions (only for chip-readable values)
+sx1280_mode_t sband_get_mode(void);
+sx1280_packet_type_t sband_get_packet_type(void);
 
 // JSON configuration loading
 int sband_load_config_json(const char *json_string, sband_config_t *config);  //PHM is this necessary?

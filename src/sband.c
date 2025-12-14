@@ -18,6 +18,34 @@
  * - Shared SPI bus with UHF radio
  */
 
+// Enable/disable setter verification (compile-time flag)
+#ifndef SBAND_VERIFY_SETTERS
+    #define SBAND_VERIFY_SETTERS 1  // Default: enabled
+#endif
+
+#if SBAND_VERIFY_SETTERS
+    #include <assert.h>
+
+    #define SBAND_ASSERT_MODE(expected) do { \
+        sx1280_mode_t actual = sband_get_mode(); \
+        if (actual != (expected)) { \
+            printf("SBand ASSERT FAILED: Expected mode %d, got %d\n", (expected), actual); \
+            assert(actual == (expected)); \
+        } \
+    } while(0)
+
+    #define SBAND_ASSERT_PACKET_TYPE(expected) do { \
+        sx1280_packet_type_t actual = sband_get_packet_type(); \
+        if (actual != (expected)) { \
+            printf("SBand ASSERT FAILED: Expected packet type %d, got %d\n", (expected), actual); \
+            assert(actual == (expected)); \
+        } \
+    } while(0)
+#else
+    #define SBAND_ASSERT_MODE(expected) ((void)0)
+    #define SBAND_ASSERT_PACKET_TYPE(expected) ((void)0)
+#endif
+
 // SX1280 Commands
 #define SX1280_CMD_GET_STATUS                0xC0
 #define SX1280_CMD_WRITE_REGISTER            0x18
@@ -42,8 +70,12 @@
 #define SX1280_CMD_GET_PACKET_STATUS         0x1D
 #define SX1280_CMD_GET_RSSI_INST             0x1F
 
-#define SX1280_FIRMWARE_VERSION_MSB 0x0153       // Firmware version register. PHM why is this three nibbles?
-#define SX1280_FIRMWARE_VERSION_EXPECTED 0xA907         // Expected firmware version 43447
+// SX1280 Register addresses (16-bit addresses accessed via CMD_READ_REGISTER/CMD_WRITE_REGISTER)
+#define SX1280_REG_VERSION_STRING           0x01F0  // 16-byte firmware version string
+#define SX1280_REG_LORA_SYNC_WORD_MSB       0x0944  // LoRa sync word MSB
+#define SX1280_REG_LORA_SYNC_WORD_LSB       0x0945  // LoRa sync word LSB
+#define SX1280_REG_LORA_SF_CONFIG           0x0925  // SF configuration
+#define SX1280_REG_LORA_RX_CODING_RATE      0x0950  // RX coding rate (readable after RX)
 
 // Timeout for DMA transfers in microseconds (20ms)
 #define DMA_TIMEOUT_US 20000
@@ -152,6 +184,39 @@ static void sband_read_command(uint8_t cmd, uint8_t *data, uint8_t len) {
     sband_spi_transfer(sband_tx_combined, sband_rx_combined, len + 2);
     if (data != NULL && len > 0) {
         memcpy(data, sband_rx_combined + 2, len);  // Skip status + NOP
+    }
+}
+
+// Write to register(s) using CMD_WRITE_REGISTER
+// Protocol: [0x18] [addr_msb] [addr_lsb] [data0] [data1] ...
+static void sband_write_register(uint16_t addr, const uint8_t *data, uint8_t len) {
+    sband_tx_combined[0] = SX1280_CMD_WRITE_REGISTER;
+    sband_tx_combined[1] = (addr >> 8) & 0xFF;  // Address MSB
+    sband_tx_combined[2] = addr & 0xFF;         // Address LSB
+
+    if (len > 0 && data != NULL) {
+        memcpy(sband_tx_combined + 3, data, len);
+    }
+
+    sband_spi_transfer(sband_tx_combined, sband_rx_combined, len + 3);
+}
+
+// Read from register(s) using CMD_READ_REGISTER
+// Protocol: [0x19] [addr_msb] [addr_lsb] [NOP...] → [status] [status] [status] [data0] ...
+static void sband_read_register(uint16_t addr, uint8_t *data, uint8_t len) {
+    sband_tx_combined[0] = SX1280_CMD_READ_REGISTER;
+    sband_tx_combined[1] = (addr >> 8) & 0xFF;  // Address MSB
+    sband_tx_combined[2] = addr & 0xFF;         // Address LSB
+
+    // Fill with NOP (0x00) for dummy bytes
+    memset(sband_tx_combined + 3, 0x00, len);
+
+    // Transfer: 3 cmd/addr bytes + len data bytes
+    sband_spi_transfer(sband_tx_combined, sband_rx_combined, len + 3);
+
+    // Data starts at offset 3 (skip cmd + 2-byte address, status bytes embedded in response)
+    if (data != NULL && len > 0) {
+        memcpy(data, sband_rx_combined + 3, len);
     }
 }
 
@@ -358,10 +423,57 @@ int16_t sband_get_rssi(void) {
     return rssi;
 }
 
-uint16_t sband_chip_id(void) {
-    uint8_t chip_id_bytes[2];
-    sband_read_command(SX1280_FIRMWARE_VERSION_MSB, chip_id_bytes, 2);
-    return ((uint16_t)chip_id_bytes[0] << 8) | chip_id_bytes[1];
+// Get current operating mode (reads from chip via CMD_GET_STATUS)
+sx1280_mode_t sband_get_mode(void) {
+    uint8_t status;
+    sband_read_command(SX1280_CMD_GET_STATUS, &status, 1);
+
+    // Extract mode from bits [7:5] (datasheet Table 11-6)
+    uint8_t mode_bits = (status >> 5) & 0x07;
+
+    // Map hardware status bits to mode enum
+    switch (mode_bits) {
+        case 0b010: return SX1280_MODE_STDBY_RC;
+        case 0b011: return SX1280_MODE_STDBY_XOSC;
+        case 0b100: return SX1280_MODE_FS;
+        case 0b101: return SX1280_MODE_RX;
+        case 0b110: return SX1280_MODE_TX;
+        default:    return SX1280_MODE_SLEEP;
+    }
+}
+
+// Get packet type (reads from chip via CMD_GET_PACKET_TYPE)
+sx1280_packet_type_t sband_get_packet_type(void) {
+    uint8_t packet_type;
+    sband_read_command(SX1280_CMD_GET_PACKET_TYPE, &packet_type, 1);
+    return (sx1280_packet_type_t)packet_type;
+}
+
+// Verify SX1280 chip is present by reading version string
+// Returns 1 on success (chip responding), 0 on failure
+int sband_verify_chip(char *version_out) {
+    char version[16] = {0};
+
+    // Read 16-byte version string from register 0x01F0
+    sband_read_register(SX1280_REG_VERSION_STRING, (uint8_t*)version, 16);
+
+    // Check if chip is responding (not all 0x00 or all 0xFF)
+    int all_zero = 1, all_ff = 1;
+    for (int i = 0; i < 16; i++) {
+        if (version[i] != 0x00) all_zero = 0;
+        if (version[i] != 0xFF) all_ff = 0;
+    }
+
+    if (all_zero || all_ff) {
+        return 0;  // Chip not responding
+    }
+
+    // Copy version string to output buffer if provided
+    if (version_out) {
+        memcpy(version_out, version, 16);
+    }
+
+    return 1;  // Success
 }
 
 // Initialize SBand radio
@@ -427,15 +539,27 @@ int sband_init(spi_pins_t *spi_pins) {
     printf("SBand: SX1280 DMA initialized (DMA TX=%d, RX=%d)\n",
            sband_tx_dma_chan, sband_rx_dma_chan);
 
-    uint8_t chip_id = sband_chip_id();
-    if (chip_id != SX1280_FIRMWARE_VERSION_EXPECTED) {
-        printf("SBand: ERROR: Unexpected chip ID: 0x%02X, expected: 0x%02X\n", chip_id, SX1280_FIRMWARE_VERSION_EXPECTED);
+    // Verify chip is present
+    char version[16];
+    if (!sband_verify_chip(version)) {
+        printf("SBand: ERROR: SX1280 not found (no response from chip)\n");
 
         // release the two DMA channels before returning error
         dma_channel_unclaim(sband_tx_dma_chan);
-        dma_channel_unclaim(sband_rx_dma_chan);        
+        dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
+
+    // Print version string for debugging
+    printf("SBand: SX1280 detected, version: ");
+    for (int i = 0; i < 16; i++) {
+        if (version[i] >= 32 && version[i] <= 126) {
+            printf("%c", version[i]);
+        } else {
+            printf("\\x%02X", (uint8_t)version[i]);
+        }
+    }
+    printf("\n");
 
     return 0;
 }
