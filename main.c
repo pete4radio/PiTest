@@ -44,6 +44,7 @@
 #include "main_gps_uart_shared_buffer.h"
 #include "doUHF.h"
 #include "doSband.h"
+#include "sband.h"
 char buffer_UART[BUFLEN] = {0}; // Define the buffer
 char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 
@@ -330,6 +331,11 @@ int main() {
             printf(buffer_RADIO_TX);
             printf("%s\n", buffer_RADIO_RX);
             // Print SBand buffers
+            // Display SBand BUSY timeout errors
+            if (sband_busy_timeout_count > 0) {
+                printf("SBand: BUSY timeout errors: %lu\n", sband_busy_timeout_count);
+                sband_busy_timeout_count = 0;  // Clear counter after displaying
+            }
             if (strlen(buffer_Sband_TX) > 0) {
                 printf("SBand TX: %s", buffer_Sband_TX);
                 buffer_Sband_TX[0] = '\0';  // Clear buffer

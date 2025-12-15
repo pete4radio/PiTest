@@ -8,10 +8,10 @@
 
 /*  
 
-Called by main.c and calling sband.c, this function implements SBand superloop 
+Called by main.c and calling sband.c, this function implements SBand superloop
 functionality for PiTest.
 
-RX is DIO0 ISR driven, using a packet queue to fill a histogram of transmitted power levels.
+RX is DIO1 ISR driven, using a packet queue to fill a histogram of transmitted power levels.
 Non-blocking TX is implemented sends one packet at new power level each invocation.
 LoRa Parameters are hard coded.
 Lively LED color indication of received packets and transmissions.
@@ -64,11 +64,11 @@ uint8_t sband_led_g = 0;
 uint8_t sband_led_b = 0;
 
 /*
- * DIO0 GPIO Interrupt Service Routine for SBand
+ * DIO1 GPIO Interrupt Service Routine for SBand
  * Triggered when a packet is received (RX_DONE interrupt)
  * Copies packet from radio FIFO to queue
  */
-void sband_dio0_isr(uint gpio, uint32_t events) {
+void sband_dio1_isr(uint gpio, uint32_t events) {
     // Check IRQ status
     uint16_t irq_flags = sband_get_irq_status();
 
@@ -132,7 +132,7 @@ void initSband(spi_pins_t *spi_pins) {
         printf("SBand: Radio initialized\n");
 
         // Disable ISR during test to prevent interference with tx_done()
-        gpio_set_irq_enabled(SAMWISE_SBAND_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
+        gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
 
         // Check that we can know here when the transmitter has completed
         // by sending a short and a long packet and measuring the time it takes
@@ -171,8 +171,8 @@ void initSband(spi_pins_t *spi_pins) {
         white();    // Indicate we are receiving
 
         // Enable ISR after test completes
-        gpio_set_irq_enabled_with_callback(SAMWISE_SBAND_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &sband_dio0_isr);
-        printf("SBand: DIO0 ISR enabled on GPIO %d\n", SAMWISE_SBAND_D0_PIN);
+        gpio_set_irq_enabled_with_callback(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true, &sband_dio1_isr);
+        printf("SBand: DIO1 ISR enabled on GPIO %d\n", SAMWISE_SBAND_D1_PIN);
     } else {
         printf("SBand: Radio initialization failed\n");
     }
@@ -246,7 +246,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         current_tx_power_sband = 10;  // Start at 10 dBm
 
         // Disable ISR during TX
-        gpio_set_irq_enabled(SAMWISE_SBAND_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
+        gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
     }
 
     // If currently transmitting, send one packet per invocation
@@ -286,7 +286,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             current_tx_power_sband = 10;  // Reset for next cycle
 
             // Re-enable ISR and return to RX mode
-            gpio_set_irq_enabled(SAMWISE_SBAND_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
+            gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
             sband_listen();
 
             buffer_Sband_TX[0] = '\0';  //PHM Zero the buffer out

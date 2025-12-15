@@ -103,6 +103,9 @@ int16_t sband_get_rssi(void);
 uint16_t sband_get_irq_status(void);
 void sband_clear_irq_status(uint16_t mask);
 
+// BUSY timeout error counter (exported for main.c error display)
+extern volatile uint32_t sband_busy_timeout_count;
+
 // Chip verification (reads 16-byte version string from register 0x01F0)
 int sband_verify_chip(char *version_out);
 

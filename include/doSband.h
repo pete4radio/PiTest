@@ -10,7 +10,7 @@ void initSband(spi_pins_t *spi_pins);
 void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX);
 
 // ISR handler (called by GPIO interrupt)
-void sband_dio0_isr(uint gpio, uint32_t events);
+void sband_dio1_isr(uint gpio, uint32_t events);
 
 // LED color contribution from SBand (for additive color mixing)
 extern uint8_t sband_led_r;

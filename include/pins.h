@@ -27,6 +27,7 @@
     #define SAMWISE_SBAND_RST_PIN (10)
     #define SAMWISE_SBAND_CS_PIN (14)
     #define SAMWISE_SBAND_D0_PIN (15)
+    #define SAMWISE_SBAND_D1_PIN (22)
     #define SAMWISE_SBAND_SCK_PIN (26)
     #define SAMWISE_SBAND_MOSI_PIN (27)
     #define SAMWISE_SBAND_MISO_PIN (28)
