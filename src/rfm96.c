@@ -1127,6 +1127,11 @@ uint8_t rfm96_get_mode()
         printf("RFM9X Chip ID value check success: 0x%02x\n", v);
     } else {
         printf("RFM9X Chip ID check failed, expected 0x12 but got 0x%02x\n", v);
+        do {
+            reg_read(0x42, &v, 1);
+            printf("RFM9X Chip ID read retry, got 0x%02x\n", v);
+            sleep_ms(100);
+        } while (v != 0x12);
         dma_channel_unclaim(tx_dma_chan);
         dma_channel_unclaim(rx_dma_chan);
         return 1;   // failure

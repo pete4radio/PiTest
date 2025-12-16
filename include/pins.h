@@ -38,7 +38,13 @@
 
     #define SAMWISE_WATCHDOG_FEED_PIN (6)
     #define SAMWISE_BURNWIRE_PIN (6)
-    #define SAMWISE_NEOPIXEL_PIN (20)
+    #define SAMWISE_NEOPIXEL_PIN (4)
+
+    #define SAMWISE_UART_TX_PIN (2)
+    #define SAMWISE_UART_RX_PIN (3)
+
+    #define SAMWISE_DEBUG_UART_TX_PIN (0)
+    #define SAMWISE_DEBUG_UART_RX_PIN (1)
 
 #else
 

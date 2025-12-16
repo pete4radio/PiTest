@@ -3,6 +3,7 @@
 #include "hardware/irq.h"
 #include "uart.h"
 #include "main_gps_uart_shared_buffer.h"
+#include "pins.h"
 
 static int chars_rxed = 0;
 
@@ -39,8 +40,8 @@ uint8_t init_uart() {
 
     // Set the TX and RX pins by using the function select on the GPIO
     // Set datasheet for more information on function select
-    gpio_set_function(UART_TX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_TX_PIN));
-    gpio_set_function(UART_RX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_RX_PIN));
+    gpio_set_function(SAMWISE_UART_TX_PIN, UART_FUNCSEL_NUM(UART_ID, SAMWISE_UART_TX_PIN));
+    gpio_set_function(SAMWISE_UART_RX_PIN, UART_FUNCSEL_NUM(UART_ID, SAMWISE_UART_RX_PIN));
 
     // Actually, we want a different speed
     // The call will return the actual baud rate selected, which will be as close as
