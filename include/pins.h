@@ -38,6 +38,7 @@
 
     #define SAMWISE_WATCHDOG_FEED_PIN (6)
     #define SAMWISE_BURNWIRE_PIN (6)
+    #define SAMWISE_NEOPIXEL_PIN (20)
 
 #else
 

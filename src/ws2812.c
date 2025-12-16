@@ -11,6 +11,7 @@
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "ws2812.pio.h"
+#include "pins.h"
 
 PIO global_pio;
 uint global_sm;
@@ -32,15 +33,8 @@ uint global_sm;
 //really only one
 #define NUM_PIXELS 2
 
-#ifdef PICO_DEFAULT_WS2812_PIN
-#define WS2812_PIN PICO_DEFAULT_WS2812_PIN
-#else
-// default to pin 22 if the board doesn't have a default WS2812 pin defined
-#define WS2812_PIN 22
-#endif
-
 // Check the pin is compatible with the platform
-#if WS2812_PIN >= NUM_BANK0_GPIOS
+#if SAMWISE_NEOPIXEL_PIN >= NUM_BANK0_GPIOS
 #error Attempting to use a pin>=32 on a platform that does not support it
 #endif
 
@@ -122,7 +116,7 @@ void set_led_color(uint8_t r, uint8_t g, uint8_t b){
 
 int ws2812_init() {
     //set_sys_clock_48();
-    printf("WS2812_init: Smoke Test, using pin %d\n", WS2812_PIN);
+    printf("WS2812_init: Smoke Test, using pin %d\n", SAMWISE_NEOPIXEL_PIN);
 
     // todo get free sm
     PIO pio;
@@ -133,7 +127,7 @@ int ws2812_init() {
 
 
 // Check the pin is compatible with the platform
-#if WS2812_PIN >= NUM_BANK0_GPIOS
+#if SAMWISE_NEOPIXEL_PIN >= NUM_BANK0_GPIOS
 #error Attempting to use a pin>=32 on a platform that does not support it
 #endif
 
@@ -141,10 +135,10 @@ int ws2812_init() {
     // This will find a free pio and state machine for our program and load it for us
     // We use pio_claim_free_sm_and_add_program_for_gpio_range (for_gpio_range variant)
     // so we will get a PIO instance suitable for addressing gpios >= 32 if needed and supported by the hardware
-    bool success = pio_claim_free_sm_and_add_program_for_gpio_range(&ws2812_program, &pio, &sm, &offset, WS2812_PIN, 1, true);
+    bool success = pio_claim_free_sm_and_add_program_for_gpio_range(&ws2812_program, &pio, &sm, &offset, SAMWISE_NEOPIXEL_PIN, 1, true);
     hard_assert(success);
 
-    ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);   
+    ws2812_program_init(pio, sm, offset, SAMWISE_NEOPIXEL_PIN, 800000, IS_RGBW);   
     global_pio = pio;
     global_sm = sm;
 

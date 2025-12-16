@@ -12,7 +12,7 @@
  * Key differences from SX1276/RFM96:
  * - 16-bit register addresses (vs 8-bit)
  * - Different command set (0x80-0xC1 range)
- * - No BUSY pin - use timed delays (15us after reset, 1ms after mode change)
+ * - BUSY pin (D0) polled before SPI commands with 20ms timeout
  * - IRQ status is 16-bit (vs 8-bit)
  * - Frequency range 2.4 GHz (vs 437 MHz)
  * - Shared SPI bus with UHF radio
@@ -95,6 +95,10 @@ static int sband_rx_dma_chan = -1;
 static uint8_t sband_tx_combined[258];
 static uint8_t sband_rx_combined[258];
 
+// BUSY polling timeout and counter
+#define BUSY_TIMEOUT_US 20000
+volatile uint32_t sband_busy_timeout_count = 0;
+
 // Timeout tracking structure
 typedef struct {
     uint64_t start_time_us;
@@ -134,9 +138,33 @@ static int sband_dma_wait_both_with_timeout(sband_timeout_t *timeout_ctx) {
     return 0;
 }
 
+// Poll BUSY pin (D0) until LOW with timeout
+// Returns 0 on success (BUSY went LOW), -1 on timeout
+static int sband_wait_busy_low(void) {
+    uint64_t start_time = time_us_64();
+
+    while (gpio_get(sband_d0_pin)) {  // While BUSY is HIGH
+        if ((time_us_64() - start_time) >= BUSY_TIMEOUT_US) {
+            sband_busy_timeout_count++;
+            printf("SBand: BUSY timeout after %llu us\n",
+                   (time_us_64() - start_time));
+            return -1;
+        }
+        sleep_us(1);  // Small delay to prevent busy-waiting
+    }
+
+    return 0;  // BUSY is now LOW
+}
+
 // Low-level SPI transfer with DMA
 static void sband_spi_transfer(const uint8_t *tx_buf, uint8_t *rx_buf, uint16_t len) {
     sband_timeout_t timeout;
+
+    // Wait for BUSY pin to go LOW before starting SPI transfer
+    if (sband_wait_busy_low() != 0) {
+        printf("SBand: WARNING: Proceeding with SPI transfer despite BUSY timeout\n");
+        // Continue anyway to prevent complete lockup
+    }
 
     // Configure TX DMA
     dma_channel_config tx_cfg = dma_channel_get_default_config(sband_tx_dma_chan);
@@ -226,17 +254,66 @@ static void sband_read_register(uint16_t addr, uint8_t *data, uint8_t len) {
 
 // Reset the SX1280
 void sband_reset(void) {
+    
+    if (sband_wait_busy_low() != 0) {
+        printf("SBand: WARNING: Proceeding with reset despite BUSY timeout\n");
+        // Continue anyway to prevent complete lockup
+    }
+    
     gpio_put(sband_rst_pin, 0);
     sleep_us(50);
     gpio_put(sband_rst_pin, 1);
     sleep_us(100);  // Wait for chip to boot (15us min)
+
+    if (sband_wait_busy_low() != 0) {
+        printf("SBand: WARNING: Returning from reset despite BUSY timeout\n");
+        // Continue anyway to prevent complete lockup
+    }
 }
 
 // Set operating mode
 void sband_set_mode(sx1280_mode_t mode) {
-    uint8_t cmd_data[1] = {mode};
-    sband_write_command(SX1280_CMD_SET_STANDBY, cmd_data, 1);
-    sleep_ms(1);  // Wait for mode change
+    uint8_t cmd_data[1];
+    uint8_t cmd;
+
+    if (sband_wait_busy_low() != 0) {
+        printf("[File: %s, Function: %s, Line: %d] WARNING: Attempting set mode despite BUSY timeout\n",
+               __FILE__, __func__, __LINE__);
+    }
+
+    // Select the appropriate command based on mode
+    uint8_t data_len = 0;
+
+    switch(mode) {
+        case SX1280_MODE_SLEEP:
+            cmd = SX1280_CMD_SET_SLEEP;
+            cmd_data[0] = 0x00;  // Sleep configuration
+            data_len = 1;
+            break;
+        case SX1280_MODE_STDBY_RC:
+        case SX1280_MODE_STDBY_XOSC:
+            cmd = SX1280_CMD_SET_STANDBY;
+            cmd_data[0] = (mode == SX1280_MODE_STDBY_RC) ? 0x00 : 0x01;
+            data_len = 1;  // SET_STANDBY takes 1 byte
+            break;
+        case SX1280_MODE_FS:
+            cmd = SX1280_CMD_SET_FS;
+            data_len = 0;  // SET_FS is opcode-only
+            break;
+        default:
+            // TX and RX modes should use sband_transmit() and sband_listen()
+            printf("SBand: ERROR: Use sband_transmit() or sband_listen() for TX/RX modes\n");
+            return;
+    }
+
+    sband_write_command(cmd, cmd_data, data_len);
+
+    if (sband_wait_busy_low() != 0) {
+        printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
+               __FILE__, __func__, __LINE__);
+        printf("mode = %d; cmd = 0x%x; cmd_data[0] = 0x%x\n", mode, cmd, cmd_data[0]);
+    }
+
 }
 
 // Set packet type
@@ -333,21 +410,31 @@ void sband_clear_irq_status(uint16_t mask) {
 // Put radio in RX mode (listen)
 void sband_listen(void) {
     uint8_t cmd_data[3];
-    cmd_data[0] = 0x02;  // Periodbase (not used in single mode)
-    cmd_data[1] = 0xFF;  // Timeout MSB (0xFFFF = continuous)
-    cmd_data[2] = 0xFF;  // Timeout LSB
+    cmd_data[0] = 0x00;  // periodBase
+    cmd_data[1] = 0xFF;  // periodBaseCount MSB (0xFFFF = continuous RX)
+    cmd_data[2] = 0xFF;  // periodBaseCount LSB
 
     sband_write_command(SX1280_CMD_SET_RX, cmd_data, 3);
+
+    if (sband_wait_busy_low() != 0) {
+        printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
+               __FILE__, __func__, __LINE__);
+    }
 }
 
 // Put radio in TX mode (transmit)
 void sband_transmit(void) {
     uint8_t cmd_data[3];
-    cmd_data[0] = 0x02;  // Periodbase
-    cmd_data[1] = 0xFF;  // Timeout MSB (no timeout)
-    cmd_data[2] = 0xFF;  // Timeout LSB
+    cmd_data[0] = 0x00;  // periodBase
+    cmd_data[1] = 0x00;  // periodBaseCount MSB (0x0000 = no timeout)
+    cmd_data[2] = 0x00;  // periodBaseCount LSB
 
     sband_write_command(SX1280_CMD_SET_TX, cmd_data, 3);
+
+    if (sband_wait_busy_low() != 0) {
+        printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
+               __FILE__, __func__, __LINE__);
+    }
 }
 
 // Check if TX is done
@@ -496,6 +583,11 @@ int sband_init(spi_pins_t *spi_pins) {
     gpio_set_dir(sband_d0_pin, GPIO_IN);
     gpio_pull_down(sband_d0_pin);
 
+    // Initialize D1 pin for interrupt (DIO1)
+    gpio_init(SAMWISE_SBAND_D1_PIN);
+    gpio_set_dir(SAMWISE_SBAND_D1_PIN, GPIO_IN);
+    gpio_pull_down(SAMWISE_SBAND_D1_PIN);
+
     // Initialize SPI1 for SBand (separate bus from UHF's SPI0)
     gpio_set_function(SAMWISE_SBAND_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(SAMWISE_SBAND_MOSI_PIN, GPIO_FUNC_SPI);
@@ -520,13 +612,35 @@ int sband_init(spi_pins_t *spi_pins) {
                          0, false);
 
     // Reset radio
-    sband_reset();
+    //sband_reset();
 
-    // Set standby mode
-    sband_set_mode(SX1280_MODE_STDBY_RC);
+    if (sband_wait_busy_low() != 0) {
+        printf("[File: %s, Function: %s, Line: %d] WARNING: Proceeding after BUSY timeout\n",
+               __FILE__, __func__, __LINE__);
+    }
+
+    // Send GET_STATUS to verify chip is responsive (simple 1-byte command)
+    uint8_t cmd_buf[1] = {SX1280_CMD_GET_STATUS};
+    uint8_t status_buf[1];
+    sband_spi_transfer(cmd_buf, status_buf, 1);
+    printf("SBand: Status after reset: 0x%02X\n", status_buf[0]);
+
+    // Chip should already be in STANDBY_RC after reset, but set it explicitly
+    //sband_set_mode(SX1280_MODE_STDBY_RC);
+
+    if (sband_wait_busy_low() != 0) {
+        printf("[File: %s, Function: %s, Line: %d] WARNING: Proceeding after BUSY timeout\n",
+               __FILE__, __func__, __LINE__);
+    }
 
     // Configure for LoRa mode
     sband_set_packet_type(SX1280_PACKET_TYPE_LORA);
+
+    if (sband_wait_busy_low() != 0) {
+        printf("[File: %s, Function: %s, Line: %d] WARNING: Proceeding after BUSY timeout\n",
+            __FILE__, __func__, __LINE__);
+    }
+
     sband_set_rf_frequency(2427000000);  // 2427 MHz
     sband_set_modulation_params(SX1280_LORA_SF5, SX1280_LORA_BW_200, SX1280_LORA_CR_4_5);
     sband_set_packet_params(12, 0x00, 253, 0x20, 0x40);  // Preamble=12, variable header, 253 bytes, CRC on, IQ normal
