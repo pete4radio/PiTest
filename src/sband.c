@@ -612,7 +612,7 @@ int sband_init(spi_pins_t *spi_pins) {
                          0, false);
 
     // Reset radio
-    //sband_reset();
+    sband_reset();
 
     if (sband_wait_busy_low() != 0) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Proceeding after BUSY timeout\n",
@@ -626,7 +626,7 @@ int sband_init(spi_pins_t *spi_pins) {
     printf("SBand: Status after reset: 0x%02X\n", status_buf[0]);
 
     // Chip should already be in STANDBY_RC after reset, but set it explicitly
-    //sband_set_mode(SX1280_MODE_STDBY_RC);
+    sband_set_mode(SX1280_MODE_STDBY_RC);
 
     if (sband_wait_busy_low() != 0) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Proceeding after BUSY timeout\n",

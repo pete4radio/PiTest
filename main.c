@@ -199,10 +199,11 @@ int main() {
     char buffer_Sband_TX[BUFLEN*2] = "";
 
     // Initialize UHF radio (includes ISR setup and tx_done test)
+    printf("main: Initializing UHF radio...\n");
     initUHF(&spi_pins);
 
-    // Initialize SBand radio
-    printf("Initializing SBand radio...\n");
+    // Initialize SBand radio (includes ISR setup and tx_done test)
+    printf("main: Initializing SBand radio...\n");
     initSband(&spi_pins_sband);
 
 //  ws2812 LED State Management.  Neopixel LED is white while listening,
