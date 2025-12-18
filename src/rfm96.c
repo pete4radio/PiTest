@@ -1127,11 +1127,13 @@ uint8_t rfm96_get_mode()
         printf("RFM9X Chip ID value check success: 0x%02x\n", v);
     } else {
         printf("RFM9X Chip ID check failed, expected 0x12 but got 0x%02x\n", v);
+#ifdef RFM9X_BROKEN_RADIO
         do {
             reg_read(0x42, &v, 1);
             printf("RFM9X Chip ID read retry, got 0x%02x\n", v);
             sleep_ms(100);
         } while (v != 0x12);
+#endif
         dma_channel_unclaim(tx_dma_chan);
         dma_channel_unclaim(rx_dma_chan);
         return 1;   // failure
@@ -1219,10 +1221,6 @@ uint8_t rfm96_get_mode()
  
      rfm96_set_lna_boost(0b11);
      ASSERT(rfm96_get_lna_boost() == 0b11);
-
-//  Enable the busy I/O line to signal RX and TX done
-//        uint8_t dio_mapping1 = rfm96_get8(_RH_RF95_REG_40_DIO_MAPPING1);
-//        rfm96_put8(_RH_RF95_REG_40_DIO_MAPPING1, dio_mapping1 & 0b00111111); // DIO0 = RXDONE/TXDONE
 
      rfm96_listen();       // Start by listening
      printf("rfm96: Initialization complete\n");

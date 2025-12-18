@@ -120,13 +120,16 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
  */
 void initSband(spi_pins_t *spi_pins) {
     // Initialize radio
-    //radio_initialized = sband_init(spi_pins);
 
+#ifdef SBAND_BROKEN_RADIO
     //For Hardware Debugging
     while (radio_initialized = sband_init(spi_pins) != PICO_OK) {
         printf("doSBand: Radio init failed, retrying in 0.1 second...\n");
         sleep_ms(100);
     }
+#else
+    radio_initialized = sband_init(spi_pins);
+#endif
 
     if (radio_initialized == 0) {
         printf("SBand: Radio initialized\n");

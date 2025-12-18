@@ -261,9 +261,10 @@ void sband_reset(void) {
     }
     
     gpio_put(sband_rst_pin, 0);
-    sleep_us(50);
+    sleep_us(50);       // Hold reset low for at least 10us
     gpio_put(sband_rst_pin, 1);
     sleep_us(100);  // Wait for chip to boot (15us min)
+    sleep_ms(50);   // Extra delay to ensure stability per logic analyzer tests
 
     if (sband_wait_busy_low() != 0) {
         printf("SBand: WARNING: Returning from reset despite BUSY timeout\n");
