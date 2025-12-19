@@ -452,7 +452,7 @@ uint8_t rfm96_get8(rfm96_reg_t reg)
  {
      // Reset the chip as per RFM9X.pdf 7.2.2 p109
  
-     // set reset pin to output
+     // set reset pin to output and assert low
      gpio_set_dir(SAMWISE_RF_RST_PIN, GPIO_OUT);
      gpio_put(SAMWISE_RF_RST_PIN, 0);
  
@@ -622,10 +622,10 @@ uint8_t rfm96_get_mode()
     rfm96_put8(_RH_RF95_REG_06_FRF_MSB, msb);
     rfm96_put8(_RH_RF95_REG_07_FRF_MID, mid);
     rfm96_put8(_RH_RF95_REG_08_FRF_LSB, lsb);
-    printf("rfm96: Set frequency to %d Hz\n", f);
+    printf("rfm96: Set frequency to %d Hz (0x%x %x %x)\n", f, msb, mid, lsb);
  }
  
- /*
+ /* 
   * Get frequency in hz (RFM9X.pdf 6.4 p102)
   * Uses same high-precision calculation as setter to ensure ASSERT passes
   */
@@ -1056,7 +1056,7 @@ uint8_t rfm96_get_mode()
      gpio_init(SAMWISE_RF_RST_PIN);
      gpio_set_dir(SAMWISE_RF_RST_PIN, GPIO_IN);
      gpio_disable_pulls(SAMWISE_RF_RST_PIN);
-     gpio_put(SAMWISE_RF_RST_PIN, 1);
+    
  
      // Setup cs line
      gpio_init(SAMWISE_RF_CS_PIN);
