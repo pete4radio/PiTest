@@ -13,6 +13,6 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX);
 void sband_dio1_isr(uint gpio, uint32_t events);
 
 // LED color contribution from SBand (for additive color mixing)
-extern uint8_t sband_led_r;
-extern uint8_t sband_led_g;
-extern uint8_t sband_led_b;
+extern volatile uint8_t sband_led_r;
+extern volatile uint8_t sband_led_g;
+extern volatile uint8_t sband_led_b;

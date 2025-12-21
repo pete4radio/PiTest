@@ -13,6 +13,6 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX);
 void dio0_isr(uint gpio, uint32_t events);
 
 // LED color contribution from UHF (for additive color mixing)
-extern uint8_t uhf_led_r;
-extern uint8_t uhf_led_g;
-extern uint8_t uhf_led_b;
+extern volatile uint8_t uhf_led_r;
+extern volatile uint8_t uhf_led_g;
+extern volatile uint8_t uhf_led_b;

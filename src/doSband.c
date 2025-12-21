@@ -59,9 +59,9 @@ static int radio_initialized = -1;      //  sband radio initialized flag
 static uint8_t tx_packet_sband[250];
 
 // LED color contribution from SBand (for additive color mixing)
-uint8_t sband_led_r = 0;
-uint8_t sband_led_g = 0;
-uint8_t sband_led_b = 0;
+volatile uint8_t sband_led_r = 0;
+volatile uint8_t sband_led_g = 0;
+volatile uint8_t sband_led_b = 0;
 
 /*
  * DIO1 GPIO Interrupt Service Routine for SBand

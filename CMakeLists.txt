@@ -47,10 +47,10 @@ add_executable(${PROJECT}  main.c src/rfm96.c src/ws2812.c src/mppt.c src/power.
 #add_compile_definitions(PICO)
 
 target_include_directories(${PROJECT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi hardware_uart 
+target_link_libraries(${PROJECT} pico_stdlib hardware_i2c hardware_spi hardware_uart
     hardware_gpio hardware_dma
 #    tinyusb_device tinyusb_board
-    hardware_pio)
+    hardware_pio pico_multicore)
 
 if (PICO_CYW43_SUPPORTED)
     target_link_libraries(${PROJECT} pico_cyw43_arch_none)

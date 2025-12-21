@@ -17,6 +17,7 @@
 #include "hardware/uart.h"
 #include "hardware/irq.h"
 #include "hardware/spi.h"
+#include "pico/multicore.h"
 #include "pins.h"
 //#include "tusb.h"                     // TinyUSB header file.  PHM: Why is this commented out?
 
@@ -147,6 +148,43 @@ void pico_set_led(bool led_on) {
 #endif
 }
 
+// Global radio buffers (shared between Core 0 and Core 1)
+// Core 1 writes to these buffers, Core 0 reads from them
+volatile char buffer_RADIO_TX[BUFLEN] = "";
+volatile char buffer_RADIO_RX[BUFLEN*2] = "";
+volatile char buffer_Sband_RX[BUFLEN*2] = "";
+volatile char buffer_Sband_TX[BUFLEN*2] = "";
+
+/*
+ * Core 1 Entry Point
+ * Runs radio operations (UHF and SBand) and LED color mixing
+ * This core ONLY WRITES to buffers, never reads them
+ */
+void core1_entry() {
+    printf("Core 1: Starting radio operations\n");
+
+    // Main radio loop on Core 1
+    while (true) {
+        // RADIO operations: doUHF handles UHF radio RX/TX state machine
+        doUHF((char*)buffer_RADIO_RX, (char*)buffer_RADIO_TX);
+
+        // SBand operations: doSband handles SBand radio RX/TX state machine
+        doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
+
+        // Update LED with additive color mixing from both radios
+        uint8_t combined_r = uhf_led_r + sband_led_r;
+        uint8_t combined_g = uhf_led_g + sband_led_g;
+        uint8_t combined_b = uhf_led_b + sband_led_b;
+
+        // Cap at 0xFF to prevent overflow
+        if (combined_r > 0xFF) combined_r = 0xFF;
+        if (combined_g > 0xFF) combined_g = 0xFF;
+        if (combined_b > 0xFF) combined_b = 0xFF;
+
+        set_led_color(combined_r, combined_g, combined_b);
+    }
+}
+
 int main() {
     int counter = 0;
     int burn_state = 0;             // not running the burn wire until triggered
@@ -191,12 +229,8 @@ int main() {
     uint32_t interval_Display = 1010000;        // insure 1s period reports are fresh
     char buffer_Display[BUFLEN] = "";
 
-//  RADIO_TX and RX - now handled by doUHF module
-    char buffer_RADIO_TX[BUFLEN] = "";      //PHM why clear the buffers?
-    char buffer_RADIO_RX[BUFLEN*2] = "";
-    // SBand buffers
-    char buffer_Sband_RX[BUFLEN*2] = "";
-    char buffer_Sband_TX[BUFLEN*2] = "";
+    // Note: Radio buffers are now global variables (defined at file scope)
+    // Core 1 writes to them, Core 0 reads from them
 
     // Initialize UHF radio (includes ISR setup and tx_done test)
     printf("main: Initializing UHF radio...\n");
@@ -205,6 +239,11 @@ int main() {
     // Initialize SBand radio (includes ISR setup and tx_done test)
     printf("main: Initializing SBand radio...\n");
     initSband(&spi_pins_sband);
+
+    // Launch Core 1 to handle radio operations
+    printf("main: Launching Core 1 for radio operations...\n");
+    multicore_launch_core1(core1_entry);
+    printf("main: Core 1 launched successfully\n");
 
 //  ws2812 LED State Management.  Neopixel LED is white while listening,
 //  green while packets are in the received queue and red during transmit plus a bit extra
@@ -351,21 +390,8 @@ int main() {
             printf(buffer_WDT);
         }
 
-// RADIO_RX and RADIO_TX: Now handled by doUHF module
-        doUHF(buffer_RADIO_RX, buffer_RADIO_TX);
-
-        // SBand operations
-        doSband(buffer_Sband_RX, buffer_Sband_TX);
-
-        // Update LED with additive color mixing from both radios
-        uint8_t combined_r = uhf_led_r + sband_led_r;
-        uint8_t combined_g = uhf_led_g + sband_led_g;
-        uint8_t combined_b = uhf_led_b + sband_led_b;
-        // Cap at 0xFF to prevent overflow
-        if (combined_r > 0xFF) combined_r = 0xFF;
-        if (combined_g > 0xFF) combined_g = 0xFF;
-        if (combined_b > 0xFF) combined_b = 0xFF;
-        set_led_color(combined_r, combined_g, combined_b);
+// RADIO operations now run on Core 1 (see core1_entry() function)
+        // Core 0 only reads buffer contents in Display section
 
         // Time to UART?
         if (absolute_time_diff_us(previous_time_UART, get_absolute_time()) >= interval_UART) {
