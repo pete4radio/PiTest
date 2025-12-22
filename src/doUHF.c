@@ -151,9 +151,8 @@ void initUHF(spi_pins_t *spi_pins) {
         rfm96_listen(); // Set the radio to RX mode
         white();    // Indicate we are receiving
 
-        // Enable ISR after test completes
-        gpio_set_irq_enabled_with_callback(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &dio0_isr);
-        printf("UHF: DIO0 ISR enabled on GPIO %d\n", SAMWISE_RF_D0_PIN);
+        // Note: IRQ will be enabled in main.c via unified dispatcher (RP2040 limitation)
+        printf("UHF: DIO0 ISR will be enabled via unified dispatcher in main.c (GPIO %d)\n", SAMWISE_RF_D0_PIN);
     } else {
         printf("UHF: Radio initialization failed\n");
     }

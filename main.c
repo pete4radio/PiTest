@@ -155,6 +155,25 @@ volatile char buffer_RADIO_RX[BUFLEN*2] = "";
 volatile char buffer_Sband_RX[BUFLEN*2] = "";
 volatile char buffer_Sband_TX[BUFLEN*2] = "";
 
+// Forward declarations for ISR functions (defined in doUHF.c and doSband.c)
+extern void dio0_isr(uint gpio, uint32_t events);
+extern void sband_dio1_isr(uint gpio, uint32_t events);
+
+/*
+ * Unified GPIO IRQ Dispatcher
+ * Required because RP2040 only allows ONE global GPIO IRQ callback.
+ * Routes interrupts to the appropriate handler based on which GPIO triggered.
+ */
+void gpio_irq_dispatcher(uint gpio, uint32_t events) {
+    if (gpio == SAMWISE_RF_D0_PIN) {
+        // UHF radio interrupt (GPIO 20)
+        dio0_isr(gpio, events);
+    } else if (gpio == SAMWISE_SBAND_D1_PIN) {
+        // SBand radio interrupt (GPIO 22)
+        sband_dio1_isr(gpio, events);
+    }
+}
+
 /*
  * Core 1 Entry Point
  * Runs radio operations (UHF and SBand) and LED color mixing
@@ -169,7 +188,7 @@ void core1_entry() {
         doUHF((char*)buffer_RADIO_RX, (char*)buffer_RADIO_TX);
 
         // SBand operations: doSband handles SBand radio RX/TX state machine
-        doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
+        //doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
 
         // Update LED with additive color mixing from both radios
         uint8_t combined_r = uhf_led_r + sband_led_r;
@@ -239,6 +258,14 @@ int main() {
     // Initialize SBand radio (includes ISR setup and tx_done test)
     printf("main: Initializing SBand radio...\n");
     initSband(&spi_pins_sband);
+
+    // Setup unified GPIO IRQ handler (must be done AFTER both radios initialized)
+    // RP2040 limitation: only ONE gpio callback can be registered globally
+    printf("main: Setting up unified GPIO IRQ dispatcher...\n");
+    gpio_set_irq_enabled_with_callback(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_irq_dispatcher);
+    gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);  // No callback, uses dispatcher
+    printf("main: GPIO IRQ dispatcher registered for UHF (GPIO %d) and SBand (GPIO %d)\n",
+           SAMWISE_RF_D0_PIN, SAMWISE_SBAND_D1_PIN);
 
     // Launch Core 1 to handle radio operations
     printf("main: Launching Core 1 for radio operations...\n");

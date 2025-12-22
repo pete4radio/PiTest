@@ -173,9 +173,8 @@ void initSband(spi_pins_t *spi_pins) {
         sband_listen(); // Set the radio to RX mode
         white();    // Indicate we are receiving
 
-        // Enable ISR after test completes
-        gpio_set_irq_enabled_with_callback(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true, &sband_dio1_isr);
-        printf("SBand: DIO1 ISR enabled on GPIO %d\n", SAMWISE_SBAND_D1_PIN);
+        // Note: IRQ will be enabled in main.c via unified dispatcher (RP2040 limitation)
+        printf("SBand: DIO1 ISR will be enabled via unified dispatcher in main.c (GPIO %d)\n", SAMWISE_SBAND_D1_PIN);
     } else {
         printf("SBand: Radio initialization failed\n");
     }
