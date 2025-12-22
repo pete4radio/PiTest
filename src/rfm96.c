@@ -4,6 +4,7 @@
 #include "hardware/spi.h"
 #include "hardware/dma.h"
 #include "pins.h"
+#include "ws2812.h"  // For LED control (red, white)
 
 // External global CRC error counter (defined in main.c)
 extern volatile uint8_t nCRC;
@@ -443,9 +444,9 @@ void rfm96_get_buf(rfm96_reg_t reg, uint8_t *buf, uint32_t n)
   */
 uint8_t rfm96_get8(rfm96_reg_t reg)
  {
-     uint8_t v = 0;
-     rfm96_get_buf(reg, &v, 1);
-     return v;
+        uint8_t v[2] = {0};
+        rfm96_get_buf(reg, v, 1);
+        return v[0];
  }
  
  void rfm96_reset()
@@ -1228,7 +1229,7 @@ uint8_t rfm96_get_mode()
 
      rfm96_listen();       // Start by listening
      printf("rfm96: Initialization complete\n");
-     return (v != 0x11);    // 0 is success; 1 is failure; 0x11 is the Chip ID again
+     return 0;    // Success - all configuration complete
  }
 
  //  Chip ID
@@ -1268,6 +1269,7 @@ uint8_t rfm96_get_mode()
     rfm96_set_mode(RX_MODE);
     // Confirm RX mode set
     ASSERT(rfm96_get_mode() == RX_MODE);
+    // Note: ISR enable/disable is managed externally by doUHF(), not here
  }
  
  uint8_t rfm96_tx_done()
@@ -1345,7 +1347,7 @@ uint8_t rfm96_get_mode()
      // Check for CRC error
      if (rfm96_is_crc_enabled() && rfm96_crc_error())
      {
-         nCRC++;  // Increment global CRC error counter
+         printf("rfm96: got a packet but it has a CRC error\n");
      }
      else
      {

@@ -188,7 +188,7 @@ void core1_entry() {
         doUHF((char*)buffer_RADIO_RX, (char*)buffer_RADIO_TX);
 
         // SBand operations: doSband handles SBand radio RX/TX state machine
-        //doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
+        doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
 
         // Update LED with additive color mixing from both radios
         uint8_t combined_r = uhf_led_r + sband_led_r;
@@ -263,6 +263,9 @@ int main() {
     // RP2040 limitation: only ONE gpio callback can be registered globally
     printf("main: Setting up unified GPIO IRQ dispatcher...\n");
     gpio_set_irq_enabled_with_callback(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_irq_dispatcher);
+// Enable a rising-edge interrupt on the S‑Band DIO1 pin but does not register a new callback. 
+// Because the RP2040 allows only one global GPIO callback, this pin’s interrupts will be routed to the 
+// already-registered gpio_irq_dispatcher.
     gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);  // No callback, uses dispatcher
     printf("main: GPIO IRQ dispatcher registered for UHF (GPIO %d) and SBand (GPIO %d)\n",
            SAMWISE_RF_D0_PIN, SAMWISE_SBAND_D1_PIN);

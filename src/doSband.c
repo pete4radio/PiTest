@@ -287,9 +287,9 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             Sband_Transmitting = false;
             current_tx_power_sband = 10;  // Reset for next cycle
 
-            // Re-enable ISR and return to RX mode
-            gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
+            // Return to RX mode BEFORE re-enabling ISR (clears DIO1 from TX_DONE)
             sband_listen();
+            gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
 
             buffer_Sband_TX[0] = '\0';  //PHM Zero the buffer out
         }
