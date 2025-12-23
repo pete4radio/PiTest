@@ -484,6 +484,7 @@ void rfm96_set_mode(rfm96_mode_t mode)
      uint8_t reg = rfm96_get8(_RH_RF95_REG_01_OP_MODE);
      reg = bits_set(reg, 0, 2, mode);
      rfm96_put8(_RH_RF95_REG_01_OP_MODE, reg);
+     sleep_us(60);  // Allow time for mode change
  }
  
  /*

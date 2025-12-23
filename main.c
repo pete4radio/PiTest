@@ -19,7 +19,7 @@
 #include "hardware/spi.h"
 #include "pico/multicore.h"
 #include "pins.h"
-//#include "tusb.h"                     // TinyUSB header file.  PHM: Why is this commented out?
+//#include "tusb.h"                     // TinyUSB header file.  PHM: Why is this commented out?  because its not working
 
 #include "pico/printf.h"
 #include "pico/stdio.h"
@@ -65,16 +65,11 @@ char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 //    #endif
 //#endif
 
-//PHM these should be in pins.h but it appears they are unused
-//#define PIN_SDA 4
-//#define PIN_SCL 5
-//#define SAMWISE_BURNWIRE_PIN 6
-
 char command_buffer[BUFLEN] = "";
 char response_buffer[BUFLEN] = "";
 size_t cmd_idx = 0;  // index into command_buffer
 int rfm96_init(spi_pins_t *spi_pins);   //declaration for init which lives in rfm96.c
-//  define storage and load them with values from pins.h
+//  define storage and load them with values from pins.h  PHM why not just use them from pins.h?
 spi_pins_t spi_pins =
 {
     .RESET = SAMWISE_RF_RST_PIN,    // UHF reset pin
@@ -161,15 +156,15 @@ extern void sband_dio1_isr(uint gpio, uint32_t events);
 
 /*
  * Unified GPIO IRQ Dispatcher
- * Required because RP2040 only allows ONE global GPIO IRQ callback.
+ * Required because RP2040 & 2350 only allows ONE global GPIO IRQ callback.
  * Routes interrupts to the appropriate handler based on which GPIO triggered.
  */
 void gpio_irq_dispatcher(uint gpio, uint32_t events) {
     if (gpio == SAMWISE_RF_D0_PIN) {
-        // UHF radio interrupt (GPIO 20)
+        // UHF radio interrupt (SAMWISE_RF_D0_PIN)
         dio0_isr(gpio, events);
     } else if (gpio == SAMWISE_SBAND_D1_PIN) {
-        // SBand radio interrupt (GPIO 22)
+        // SBand radio interrupt (SAMWISE_SBAND_D1_PIN)
         sband_dio1_isr(gpio, events);
     }
 }
@@ -177,12 +172,14 @@ void gpio_irq_dispatcher(uint gpio, uint32_t events) {
 /*
  * Core 1 Entry Point
  * Runs radio operations (UHF and SBand) and LED color mixing
- * This core ONLY WRITES to buffers, never reads them
+ * Core 1 ONLY WRITES to buffers, Core 0 only reads them
  */
 void core1_entry() {
     printf("Core 1: Starting radio operations\n");
 
-    // Main radio loop on Core 1
+    // Main radio loop on Core 1.  When a radio is in TX mode, each invocation 
+    // transmits one power level packet, allowing the other radio in RX mode
+    // to update its histogram.
     while (true) {
         // RADIO operations: doUHF handles UHF radio RX/TX state machine
         doUHF((char*)buffer_RADIO_RX, (char*)buffer_RADIO_TX);
@@ -190,7 +187,13 @@ void core1_entry() {
         // SBand operations: doSband handles SBand radio RX/TX state machine
         doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
 
-        // Update LED with additive color mixing from both radios
+        // Neopixel LED color based on radio states (recent is < 500ms)
+        //                                                UHF           SBand
+        //    RX, no recent rfm96_packet_from_fifo       White           Red
+        //    RX, recent rfm96_packet_from_fifo          Green           Blue
+        //    TX                                         Red or Blue     White or Green
+
+        // Update LED with additive color mixing from both radios  PHM I think this gets removed?
         uint8_t combined_r = uhf_led_r + sband_led_r;
         uint8_t combined_g = uhf_led_g + sband_led_g;
         uint8_t combined_b = uhf_led_b + sband_led_b;
@@ -217,7 +220,7 @@ int main() {
     int ws2812rc = ws2812_init();
     white();  //  Indicate we are idle
 
-    //Initialize serial port(s) chosen in CMakeLists.txt
+    //Initialize serial port(s) chosen in CMakeLists.txt   PHM This is no longer working
     stdio_init_all();
     //  see https://forums.raspberrypi.com/viewtopic.php?t=300136
     printf("main: waiting for USB to connect\n");
@@ -261,6 +264,7 @@ int main() {
 
     // Setup unified GPIO IRQ handler (must be done AFTER both radios initialized)
     // RP2040 limitation: only ONE gpio callback can be registered globally
+    // The ISR dispatcher runs in Core 1
     printf("main: Setting up unified GPIO IRQ dispatcher...\n");
     gpio_set_irq_enabled_with_callback(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_irq_dispatcher);
 // Enable a rising-edge interrupt on the S‑Band DIO1 pin but does not register a new callback. 
@@ -275,9 +279,7 @@ int main() {
     multicore_launch_core1(core1_entry);
     printf("main: Core 1 launched successfully\n");
 
-//  ws2812 LED State Management.  Neopixel LED is white while listening,
-//  green while packets are in the received queue and red during transmit plus a bit extra
-//  for visibility
+//  ws2812 LED State Management.  PHM this is no longer used, remove?
     absolute_time_t previous_time_LED = get_absolute_time();
     uint32_t interval_LED = 100000;  // Check LED state every 100ms
     bool led_green_active = false;
@@ -302,7 +304,6 @@ int main() {
     if (!gps_data) {
         printf("ERROR: Failed to allocate memory for gps_data\n");
     }
-
 
 // MPPT1
     absolute_time_t previous_time_MPPT1 = get_absolute_time();     // ms
@@ -408,11 +409,11 @@ int main() {
             }
             if (strlen(buffer_Sband_TX) > 0) {
                 printf("SBand TX: %s", buffer_Sband_TX);
-                buffer_Sband_TX[0] = '\0';  // Clear buffer
+                buffer_Sband_TX[0] = '\0';  // Clear buffer after printing  PHM is this necessary?
             }
             if (strlen(buffer_Sband_RX) > 0) {
                 printf("SBand RX: %s\n", buffer_Sband_RX);
-                buffer_Sband_RX[0] = '\0';  // Clear buffer
+                buffer_Sband_RX[0] = '\0';  // Clear buffer after printing  PHM is this necessary?
             }
             printf(buffer_UART);
             printf(buffer_UART2);
