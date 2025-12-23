@@ -426,7 +426,8 @@ int main() {
             previous_time_UART = get_absolute_time();
         //  First byte of buffer is zero until the interrupt routine provides a complete line
             sprintf(buffer_UART, "");
-            if (init_uart() == PICO_OK) {
+        //    if (init_uart() == PICO_OK) {
+            if (0 == 1) { //  UART not implemented yet, it might interfere with radio receivers
                 //  If we got a complete line, print it
                 if (buffer_UART[0] != '\0') {
                     sprintf("UART: %s", buffer_UART);
@@ -448,7 +449,7 @@ int main() {
             // Save the last time you blinked checked GPS
             previous_time_GPS = get_absolute_time();
             //  Is there a line for us to decode?
-            if (buffer_UART[0] != '\0'  && (gps_data != NULL)) {
+            if (buffer_UART[0] != '\0'  && (gps_data != NULL) && 1 == 0) { // GPS not implemented yet, might interfere with radio receivers
                 //  Decode the GPS data from the UART buffer
                 do_gps(buffer_UART, gps_data);
                 buffer_UART[0] = '\0'; // Clear the UART buffer after processing to accept another GPS sentence

@@ -266,18 +266,29 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             tx_packet_sband[j] = ' ';
         }
 
-        // Clear any stale IRQ flags before TX
+        // Wait for TX completion. PHM Could also check for timeout on next invocation and before transmitting again.
+        // Clear any stale IRQ flags, write packet and transmit
         sband_clear_irq_status(0xFFFF);
-
         sband_packet_to_fifo(tx_packet_sband, 250);
-        sband_transmit();  // Send the packet; UHF is managing the LED
-
+        sband_transmit();  // Send the packet; inform the LED
+        white();  // Indicate transmitting, forces UHF to re-indicate received packets
         sprintf(buffer_Sband_TX, "Now sending TX Power = %02d\n", current_tx_power_sband);
 
-        // Wait for TX completion. PHM Could also check for timeout on next invocation and before transmitting again.
+        // Wait for TX completion by polling IRQ status directly (clear when seen)
         int timeout = 100000;
-        while (!sband_tx_done() && timeout--) { sleep_us(10); }
-        if (!sband_tx_done()) printf("SBand: TX timed out at power %d\n", current_tx_power_sband);
+        uint16_t irq;
+        while (timeout-- > 0) {
+            irq = sband_get_irq_status();
+            if (irq & SX1280_IRQ_TX_DONE) {
+                sband_clear_irq_status(SX1280_IRQ_TX_DONE);
+                break;
+            }
+            sleep_us(10);
+        }
+        if (timeout <= 0) {
+            irq = sband_get_irq_status();
+            printf("SBand: TX timed out waiting for TX_DONE at power %d (irq=0x%04X)\n", current_tx_power_sband, irq);
+        }
 
         // Move to next power level
         current_tx_power_sband--;
