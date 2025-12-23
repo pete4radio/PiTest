@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 #include "pico/time.h"
 #include "pins.h"
 
@@ -11,6 +12,12 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX);
 
 // ISR handler (called by GPIO interrupt)
 void dio0_isr(uint gpio, uint32_t events);
+
+// Global state: true = UHF TX (SBand RX), false = UHF RX (SBand TX)
+extern volatile bool UHF_TX;
+
+// Timestamp of last UHF packet received (for LED logic)
+extern volatile absolute_time_t uhf_last_rx_time;
 
 // LED color contribution from UHF (for additive color mixing)
 extern volatile uint8_t uhf_led_r;

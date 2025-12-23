@@ -1,4 +1,5 @@
 #include "doSband.h"
+#include "doUHF.h"    // For UHF_TX global state
 #include "sband.h"
 #include <stdio.h>
 #include <string.h>
@@ -49,10 +50,10 @@ static uint32_t interval_Sband_RX = 1000000;        // 1 second
 static uint32_t interval_Sband_TX = 20*1010*1000;   // 20.2 seconds
 
 // State machine variables for non-blocking TX
-static bool Sband_Transmitting = false;
+// Note: Sband_Transmitting is now controlled by global UHF_TX state (!UHF_TX = Sband TX)
 static int current_tx_power_sband = 10;  // Start at 10 dBm, count down to -1
-static bool sband_rx_active = false;      // Track if we received packets
-static absolute_time_t sband_last_rx_time;
+static bool sband_rx_active = false;      // Track if we received packets (deprecated - use sband_last_rx_time)
+volatile absolute_time_t sband_last_rx_time = 0;  // Timestamp of last packet (for LED logic)
 static int radio_initialized = -1;      //  sband radio initialized flag
 
 // Static buffer for TX packets
@@ -190,8 +191,8 @@ void initSband(spi_pins_t *spi_pins) {
  * Handles packet reception and transmission at regular intervals
  */
 void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
-    // SBAND_RX: Process packet queue (filled by ISR) - ONLY if not transmitting
-    if (!Sband_Transmitting && radio_initialized == 0 &&
+    // SBAND_RX: Process packet queue (filled by ISR) - ONLY when UHF is transmitting
+    if (UHF_TX && radio_initialized == 0 &&
         absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
         previous_time_Sband_RX = get_absolute_time();
         sprintf(buffer_Sband_RX, "SB_RXd ");  // using suffixes for version identification
@@ -239,20 +240,25 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     }
 
     // SBAND_TX: State machine for non-blocking transmission
-    // Check if it's time to start a new transmission cycle
-    if (!Sband_Transmitting && radio_initialized == 0 &&
-        absolute_time_diff_us(previous_time_Sband_TX, get_absolute_time()) >= interval_Sband_TX) {
-        // Start transmission cycle
-        previous_time_Sband_TX = get_absolute_time();
-        Sband_Transmitting = true;
-        current_tx_power_sband = 10;  // Start at 10 dBm
-
-        // Disable ISR during TX
-        gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
+    // Transmit when UHF is in RX mode (!UHF_TX)
+    // Detect UHF_TX state changes to handle ISR enable/disable
+    static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
+    if (UHF_TX != prev_UHF_TX) {
+        if (UHF_TX) {
+            // UHF_TX went from false to true: Stop Sband TX, start Sband RX
+            sband_listen();
+            gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
+            buffer_Sband_TX[0] = '\0';  // Clear TX buffer
+        } else {
+            // UHF_TX went from true to false: Stop Sband RX, start Sband TX
+            gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
+            current_tx_power_sband = 10;  // Start at 10 dBm
+        }
+        prev_UHF_TX = UHF_TX;
     }
 
-    // If currently transmitting, send one packet per invocation
-    if (Sband_Transmitting) {
+    // If currently transmitting (UHF in RX mode), send one packet per invocation
+    if (!UHF_TX && radio_initialized == 0) {
         sband_set_tx_params(current_tx_power_sband, 0x02);  // Set power, ramp 20μs
 
         // Create packet: preamble + power + spaces to fill 250 bytes
@@ -281,22 +287,15 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         // Move to next power level
         current_tx_power_sband--;
 
-        // Check if transmission cycle is complete
-        if (current_tx_power_sband < -1) {              // PHM I wonder if this should be a symbolic, or even command-able?
-            // Transmission cycle complete
-            Sband_Transmitting = false;
-            current_tx_power_sband = 10;  // Reset for next cycle
-
-            // Return to RX mode BEFORE re-enabling ISR (clears DIO1 from TX_DONE)
-            sband_listen();
-            gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
-
-            buffer_Sband_TX[0] = '\0';  //PHM Zero the buffer out
+        // Check if transmission cycle is complete - loop continuously until UHF_TX goes true
+        if (current_tx_power_sband < -1) {
+            current_tx_power_sband = 10;  // Reset to start of cycle and continue
+            // Note: Don't switch to RX mode here - that happens when UHF_TX changes
         }
     }
 
-    // Update LED color contribution based on SBand state
-    if (Sband_Transmitting) {
+    // Update LED color contribution based on SBand state (deprecated - LED logic moved to main.c)
+    if (!UHF_TX) {
         // Transmitting: Blue
         sband_led_r = 0;
         sband_led_g = 0;

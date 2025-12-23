@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 #include "pico/time.h"
 #include "pins.h"
 
@@ -11,6 +12,9 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX);
 
 // ISR handler (called by GPIO interrupt)
 void sband_dio1_isr(uint gpio, uint32_t events);
+
+// Timestamp of last SBand packet received (for LED logic)
+extern volatile absolute_time_t sband_last_rx_time;
 
 // LED color contribution from SBand (for additive color mixing)
 extern volatile uint8_t sband_led_r;

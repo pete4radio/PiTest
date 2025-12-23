@@ -187,23 +187,39 @@ void core1_entry() {
         // SBand operations: doSband handles SBand radio RX/TX state machine
         doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
 
-        // Neopixel LED color based on radio states (recent is < 500ms)
+        // Neopixel LED color based on unified radio state (recent is < 200ms)
         //                                                UHF           SBand
-        //    RX, no recent rfm96_packet_from_fifo       White           Red
-        //    RX, recent rfm96_packet_from_fifo          Green           Blue
+        //    RX, no recent packet                       White           Red
+        //    RX, recent packet                          Green           Blue
         //    TX                                         Red or Blue     White or Green
 
-        // Update LED with additive color mixing from both radios  PHM I think this gets removed?
-        uint8_t combined_r = uhf_led_r + sband_led_r;
-        uint8_t combined_g = uhf_led_g + sband_led_g;
-        uint8_t combined_b = uhf_led_b + sband_led_b;
+        uint8_t led_r, led_g, led_b;
+        bool uhf_rx_recent = (uhf_last_rx_time != 0) &&
+                             (absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) < 200000);
+        bool sband_rx_recent = (sband_last_rx_time != 0) &&
+                               (absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) < 200000);
 
-        // Cap at 0xFF to prevent overflow
-        if (combined_r > 0xFF) combined_r = 0xFF;
-        if (combined_g > 0xFF) combined_g = 0xFF;
-        if (combined_b > 0xFF) combined_b = 0xFF;
+        if (UHF_TX) {
+            // UHF transmitting, SBand receiving
+            if (sband_rx_recent) {
+                // Blue (SBand recent RX overrides UHF TX red)
+                led_r = 0x00; led_g = 0x00; led_b = 0x20;
+            } else {
+                // Red (UHF TX, SBand RX no recent)
+                led_r = 0x20; led_g = 0x00; led_b = 0x00;
+            }
+        } else {
+            // UHF receiving, SBand transmitting
+            if (uhf_rx_recent) {
+                // Green (UHF recent RX)
+                led_r = 0x00; led_g = 0x20; led_b = 0x00;
+            } else {
+                // White (UHF RX no recent)
+                led_r = 0x20; led_g = 0x20; led_b = 0x20;
+            }
+        }
 
-        set_led_color(combined_r, combined_g, combined_b);
+        set_led_color(led_r, led_g, led_b);
     }
 }
 

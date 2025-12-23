@@ -39,11 +39,13 @@ static absolute_time_t previous_time_RADIO_TX;
 static uint32_t interval_RADIO_RX = 1000000;        // 1 second
 static uint32_t interval_RADIO_TX = 20*1010*1000;   // 20.2 seconds
 
+// Global state machine: true = UHF TX (SBand RX), false = UHF RX (SBand TX)
+volatile bool UHF_TX = false;
+
 // State machine variables for non-blocking TX
-static bool UHF_Transmitting = false;
 static int current_tx_power_uhf = 10;  // Start at 10 dBm, count down to -1
-static bool uhf_rx_active = false;     // Track if we received packets
-static absolute_time_t uhf_last_rx_time;
+static bool uhf_rx_active = false;     // Track if we received packets (deprecated - use uhf_last_rx_time)
+volatile absolute_time_t uhf_last_rx_time = 0;  // Timestamp of last packet (for LED logic)
 
 // Static buffer for TX packets
 static uint8_t tx_packet[250];
@@ -169,7 +171,7 @@ void initUHF(spi_pins_t *spi_pins) {
  */
 void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
     // RADIO_RX: Process packet queue (filled by ISR) - ONLY if not transmitting
-    if (!UHF_Transmitting &&
+    if (!UHF_TX &&
         absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
         previous_time_RADIO_RX = get_absolute_time();
         sprintf(buffer_RADIO_RX, "RXdd ");  // DMA, Non-Blocking Clears out the results buffer
@@ -221,12 +223,10 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
     }
 
     // RADIO_TX: State machine for non-blocking transmission
-    
+
     // If currently transmitting, send one packet per invocation
-    if (UHF_Transmitting) {
-        printf("UHF TX: Starting packet at power %d\n", current_tx_power_uhf);
+    if (UHF_TX) {
         rfm96_set_tx_power(current_tx_power_uhf);
-        printf("UHF TX: Power set\n");
 
         // Create packet: preamble + power + spaces to fill 250 bytes
         memset(tx_packet, ' ', 250);  // Fill with spaces
@@ -241,11 +241,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
             tx_packet[j] = ' ';
         }
 
-        printf("UHF TX: Packet created, loading to FIFO\n");
         rfm96_packet_to_fifo(tx_packet, 250);
-        printf("UHF TX: FIFO loaded, starting transmit\n");
         rfm96_transmit();  // Send the packet
-        printf("UHF TX: Transmit started, waiting for completion\n");
         red();  // Indicate transmitting
 
         sprintf(buffer_RADIO_TX, "doUHF: Now sending TX Power = %02d\n", current_tx_power_uhf);
@@ -253,50 +250,43 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         // Wait for TX completion
         int timeout = 100000;
         while (!rfm96_tx_done() && timeout--) { sleep_us(10); }
-        printf("UHF TX: Wait loop finished, timeout=%d\n", timeout);
         if (!rfm96_tx_done()) printf("UHF: TX timed out at power %d\n", current_tx_power_uhf);
 
         // Move to next power level
         current_tx_power_uhf--;
-        printf("UHF TX: Power decremented to %d\n", current_tx_power_uhf);
 
         // Check if transmission cycle is complete
         if (current_tx_power_uhf < -1) {
-            printf("UHF TX: Cycle complete, returning to RX mode\n");
-            // Transmission cycle complete
-            UHF_Transmitting = false;
+            // Transmission cycle complete - switch to SBand TX, UHF RX
+            UHF_TX = false;
             current_tx_power_uhf = 10;  // Reset for next cycle.
         //  If the power supply can provide 1.5A, set this and the Sband
         //  parameter of the same name to 20.  PHM
 
             // Return to RX mode BEFORE re-enabling ISR (clears DIO0 from TX_DONE)
             rfm96_listen();
-            printf("UHF TX: RX mode set, re-enabling ISR\n");
             white();  // Indicate receiving
             gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
-            printf("UHF TX: ISR re-enabled, TX cycle complete\n");
 
             buffer_RADIO_TX[0] = '\0';  // Zero the buffer out
             previous_time_RADIO_TX = get_absolute_time();   // Reset TX timer
         }
-    } // end if (UHF_Transmitting)
+    } // end if (UHF_TX)
 
     // Not UHF transmitting: Check if it's time to start a new transmission cycle
-    if (!UHF_Transmitting &&
+    if (!UHF_TX &&
         absolute_time_diff_us(previous_time_RADIO_TX, get_absolute_time()) >= interval_RADIO_TX) {
-        printf("UHF TX: Starting new TX cycle\n");
-        // Start transmission cycle
+        // Start transmission cycle - switch to UHF TX, SBand RX
         previous_time_RADIO_TX = get_absolute_time();
-        UHF_Transmitting = true;
+        UHF_TX = true;
         current_tx_power_uhf = 10;  // Start at 10 dBm
 
         // Disable ISR during TX
         gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
-        printf("UHF TX: ISR disabled, ready to transmit\n");
     }
 
     // Update LED color contribution based on UHF state
-    if (UHF_Transmitting) {
+    if (UHF_TX) {
         // Transmitting: Red
         uhf_led_r = 0x10;
         uhf_led_g = 0;
