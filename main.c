@@ -158,39 +158,61 @@ volatile char buffer_Sband_TX[BUFLEN*2] = "";
 extern void dio0_isr(uint gpio, uint32_t events);
 extern void sband_dio1_isr(uint gpio, uint32_t events);
 
+// Synchronization flag: Core 1 sets this when radio initialization is complete
+volatile bool core1_radio_init_complete = false;
+
 /*
- * Unified radio "done" GPIO IRQ Dispatcher (SX1280 also has a busy line which is different)
- * Required because RP2040 & 2350 only allows ONE global GPIO IRQ callback.
- * Routes interrupts to the appropriate handler based on which GPIO triggered.
+ * Unified GPIO IRQ Dispatcher (runs on Core 1)
+ * Required because RP2040/2350 only allows ONE global GPIO IRQ callback
+ * Routes interrupts to the appropriate handler based on which GPIO triggered
  */
-void gpio_irq_dispatcher(uint gpio, uint32_t events) {
+static void gpio_irq_dispatcher_core1(uint gpio, uint32_t events) {
     if (gpio == SAMWISE_RF_D0_PIN) {
-        // UHF radio interrupt (SAMWISE_RF_D0_PIN)
-        dio0_isr(gpio, events);
+        dio0_isr(gpio, events);  // UHF radio interrupt
     } else if (gpio == SAMWISE_SBAND_D1_PIN) {
-        // SBand radio interrupt (SAMWISE_SBAND_D1_PIN)
-        sband_dio1_isr(gpio, events);
+        sband_dio1_isr(gpio, events);  // SBand radio interrupt
     }
 }
 
 /*
  * Core 1 Entry Point
- * Runs radio operations (UHF and SBand) and has the ISRs called from the dispatcher.
+ * Handles ALL radio operations: initialization, ISR dispatcher, doUHF(), doSband()
+ * This ensures ISRs fire on Core 1, preventing SPI bus contention with Core 0
  * Core 1 ONLY WRITES to buffers, Core 0 only reads them
  */
 void core1_entry() {
-    printf("Core 1: Starting radio operations\n");
+    printf("Core 1: Starting radio initialization...\n");
 
-    // Main radio loop on Core 1.  When a radio is in TX mode, each invocation 
-    // transmits one power level packet, allowing the other radio in RX mode
-    // to update its histogram.
+    // Initialize UHF radio (includes tx_done test)
+    printf("Core 1: Initializing UHF radio...\n");
+    initUHF(&spi_pins);
+
+    // Initialize SBand radio (includes tx_done test)
+    printf("Core 1: Initializing SBand radio...\n");
+    initSband(&spi_pins_sband);
+
+    // Setup unified GPIO IRQ handler on Core 1 (after both radios initialized)
+    // ISRs will now fire on Core 1, naturally blocking doUHF/doSband (no SPI contention)
+    printf("Core 1: Setting up GPIO IRQ dispatcher...\n");
+    gpio_set_irq_enabled_with_callback(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_irq_dispatcher_core1);
+    gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);  // Uses same dispatcher
+    printf("Core 1: GPIO IRQ dispatcher registered (GPIO %d and %d)\n",
+           SAMWISE_RF_D0_PIN, SAMWISE_SBAND_D1_PIN);
+
+    // Signal to Core 0 that radio initialization is complete
+    core1_radio_init_complete = true;
+    printf("Core 1: Radio initialization complete, starting main loop\n");
+
+    // Main radio loop on Core 1
+    // When a radio is in TX mode, each invocation transmits one power level packet,
+    // allowing the other radio in RX mode to update its histogram
     while (true) {
         // RADIO operations: doUHF handles UHF radio RX/TX state machine
         doUHF((char*)buffer_RADIO_RX, (char*)buffer_RADIO_TX);
 
         // SBand operations: doSband handles SBand radio RX/TX state machine
         doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
-    }   
+    }
 }
 
 int main() {
@@ -240,30 +262,18 @@ int main() {
     // Note: Radio buffers are now global variables (defined at file scope)
     // Core 1 writes to them, Core 0 reads from them
 
-    // Initialize UHF radio (includes ISR setup and tx_done test)
-    printf("main: Initializing UHF radio...\n");
-    initUHF(&spi_pins);
-
-    // Initialize SBand radio (includes ISR setup and tx_done test)
-    printf("main: Initializing SBand radio...\n");
-    initSband(&spi_pins_sband);
-
-    // Setup unified GPIO IRQ handler (must be done AFTER both radios initialized)
-    // RP2040 limitation: only ONE gpio callback can be registered globally
-    // The ISR dispatcher runs in Core 1
-    printf("main: Setting up unified GPIO IRQ dispatcher...\n");
-    gpio_set_irq_enabled_with_callback(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_irq_dispatcher);
-// Enable a rising-edge interrupt on the S‑Band DIO1 pin but does not register a new callback. 
-// Because the RP2040 allows only one global GPIO callback, this pin’s interrupts will be routed to the 
-// already-registered gpio_irq_dispatcher.
-    gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);  // No callback, uses dispatcher
-    printf("main: GPIO IRQ dispatcher registered for UHF (GPIO %d) and SBand (GPIO %d)\n",
-           SAMWISE_RF_D0_PIN, SAMWISE_SBAND_D1_PIN);
-
-    // Launch Core 1 to handle radio operations
+    // Launch Core 1 to handle ALL radio operations (init, ISR, doUHF/doSband)
+    // Core 1 will initialize radios and register ISR dispatcher
+    // This ensures ISRs fire on Core 1, preventing SPI bus contention with Core 0
     printf("main: Launching Core 1 for radio operations...\n");
     multicore_launch_core1(core1_entry);
-    printf("main: Core 1 launched successfully\n");
+
+    // Wait for Core 1 to complete radio initialization
+    printf("main: Waiting for Core 1 radio initialization...\n");
+    while (!core1_radio_init_complete) {
+        sleep_ms(10);  // Poll every 10ms
+    }
+    printf("main: Core 1 radio initialization complete, continuing...\n");
 
 //  ws2812 LED State Management.  PHM this is no longer used, remove?
     absolute_time_t previous_time_LED = get_absolute_time();
