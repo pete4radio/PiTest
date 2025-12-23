@@ -33,6 +33,7 @@
 
 // Neopixel LED color based on unified radio state (recent is < 200ms)
 //                                                UHF           SBand
+//    Short/long TX testing                      Cyan            Magenta
 //    RX, no recent packet                       White           Red
 //    RX, recent packet                          Green           Blue
 //    TX                                         Red or Blue     White or Green
@@ -143,9 +144,6 @@ void pico_set_led(bool led_on) {
 #if defined(PICO_DEFAULT_LED_PIN)
     // Just set the GPIO on or off
     gpio_put(PICO_DEFAULT_LED_PIN, led_on);
-#elif defined(CYW43_WL_GPIO_LED_PIN)
-    // Ask the wifi "driver" to set the GPIO on or off
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_on);
 #endif
 }
 
@@ -161,7 +159,7 @@ extern void dio0_isr(uint gpio, uint32_t events);
 extern void sband_dio1_isr(uint gpio, uint32_t events);
 
 /*
- * Unified GPIO IRQ Dispatcher
+ * Unified radio "done" GPIO IRQ Dispatcher (SX1280 also has a busy line which is different)
  * Required because RP2040 & 2350 only allows ONE global GPIO IRQ callback.
  * Routes interrupts to the appropriate handler based on which GPIO triggered.
  */
@@ -177,7 +175,7 @@ void gpio_irq_dispatcher(uint gpio, uint32_t events) {
 
 /*
  * Core 1 Entry Point
- * Runs radio operations (UHF and SBand) and LED color mixing
+ * Runs radio operations (UHF and SBand) and has the ISRs called from the dispatcher.
  * Core 1 ONLY WRITES to buffers, Core 0 only reads them
  */
 void core1_entry() {
