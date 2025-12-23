@@ -242,6 +242,8 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         } else {
             // UHF_TX went from true to false: Stop Sband RX, start Sband TX
             gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
+            // Put radio in STDBY mode before TX (required for SX1280)
+            sband_set_mode(SX1280_MODE_STDBY_RC);
             current_tx_power_sband = 10;  // Start at 10 dBm
         }
         prev_UHF_TX = UHF_TX;
@@ -263,6 +265,9 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         for (int j = strlen((char*)tx_packet_sband); j < 250; j++) {
             tx_packet_sband[j] = ' ';
         }
+
+        // Clear any stale IRQ flags before TX
+        sband_clear_irq_status(0xFFFF);
 
         sband_packet_to_fifo(tx_packet_sband, 250);
         sband_transmit();  // Send the packet; UHF is managing the LED

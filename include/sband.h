@@ -90,6 +90,7 @@ void sband_set_packet_type(sx1280_packet_type_t type);
 void sband_set_rf_frequency(uint32_t freq_hz);
 void sband_set_modulation_params(uint8_t sf, uint8_t bw, uint8_t cr);
 void sband_set_packet_params(uint8_t preamble_len, uint8_t header_type, uint8_t payload_len, uint8_t crc, uint8_t iq);
+void sband_set_buffer_base_address(uint8_t tx_base, uint8_t rx_base);
 void sband_set_tx_params(int8_t power, uint8_t ramp_time);
 void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask, uint16_t dio2_mask, uint16_t dio3_mask);
 void sband_listen(void);

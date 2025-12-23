@@ -64,6 +64,7 @@
 #define SX1280_CMD_SET_MODULATION_PARAMS     0x8B
 #define SX1280_CMD_SET_PACKET_PARAMS         0x8C
 #define SX1280_CMD_SET_DIO_IRQ_PARAMS        0x8D
+#define SX1280_CMD_SET_BUFFER_BASE_ADDRESS   0x8F
 #define SX1280_CMD_GET_IRQ_STATUS            0x15
 #define SX1280_CMD_CLEAR_IRQ_STATUS          0x97
 #define SX1280_CMD_GET_RX_BUFFER_STATUS      0x17
@@ -363,6 +364,15 @@ void sband_set_packet_params(uint8_t preamble_len, uint8_t header_type,
     sband_write_command(SX1280_CMD_SET_PACKET_PARAMS, cmd_data, 7);
 }
 
+// Set buffer base address (TX and RX base pointers in 256-byte buffer)
+void sband_set_buffer_base_address(uint8_t tx_base, uint8_t rx_base) {
+    uint8_t cmd_data[2];
+    cmd_data[0] = tx_base;  // TX base address in buffer (typically 0x00)
+    cmd_data[1] = rx_base;  // RX base address in buffer (typically 0x00)
+
+    sband_write_command(SX1280_CMD_SET_BUFFER_BASE_ADDRESS, cmd_data, 2);
+}
+
 // Set TX parameters
 void sband_set_tx_params(int8_t power, uint8_t ramp_time) {
     // SX1280 power range: -18 to +13 dBm
@@ -645,6 +655,7 @@ int sband_init(spi_pins_t *spi_pins) {
     sband_set_rf_frequency(2427000000);  // 2427 MHz
     sband_set_modulation_params(SX1280_LORA_SF5, SX1280_LORA_BW_200, SX1280_LORA_CR_4_5);
     sband_set_packet_params(12, 0x00, 253, 0x20, 0x40);  // Preamble=12, variable header, 253 bytes, CRC on, IQ normal
+    sband_set_buffer_base_address(0x00, 0x00);  // TX and RX both start at 0x00 in 256-byte buffer
     sband_set_tx_params(13, 0x02);  // 13 dBm, ramp 20us
 
     // Configure interrupts
