@@ -31,6 +31,12 @@
 // Neopixel aka WS2812
 #include "ws2812.h"
 
+// Neopixel LED color based on unified radio state (recent is < 200ms)
+//                                                UHF           SBand
+//    RX, no recent packet                       White           Red
+//    RX, recent packet                          Green           Blue
+//    TX                                         Red or Blue     White or Green
+
 //MPPT charge controllers
 #include "mppt.h"
 
@@ -186,41 +192,7 @@ void core1_entry() {
 
         // SBand operations: doSband handles SBand radio RX/TX state machine
         doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
-
-        // Neopixel LED color based on unified radio state (recent is < 200ms)
-        //                                                UHF           SBand
-        //    RX, no recent packet                       White           Red
-        //    RX, recent packet                          Green           Blue
-        //    TX                                         Red or Blue     White or Green
-
-        uint8_t led_r, led_g, led_b;
-        bool uhf_rx_recent = (uhf_last_rx_time != 0) &&
-                             (absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) < 200000);
-        bool sband_rx_recent = (sband_last_rx_time != 0) &&
-                               (absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) < 200000);
-
-        if (UHF_TX) {
-            // UHF transmitting, SBand receiving
-            if (sband_rx_recent) {
-                // Blue (SBand recent RX overrides UHF TX red)
-                led_r = 0x00; led_g = 0x00; led_b = 0x20;
-            } else {
-                // Red (UHF TX, SBand RX no recent)
-                led_r = 0x20; led_g = 0x00; led_b = 0x00;
-            }
-        } else {
-            // UHF receiving, SBand transmitting
-            if (uhf_rx_recent) {
-                // Green (UHF recent RX)
-                led_r = 0x00; led_g = 0x20; led_b = 0x00;
-            } else {
-                // White (UHF RX no recent)
-                led_r = 0x20; led_g = 0x20; led_b = 0x20;
-            }
-        }
-
-        set_led_color(led_r, led_g, led_b);
-    }
+    }   
 }
 
 int main() {

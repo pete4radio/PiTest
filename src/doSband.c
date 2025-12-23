@@ -35,7 +35,7 @@ volatile packet_sband_t packet_queue_sband[QUEUE_SIZE_SBAND];
 volatile uint8_t queue_head_sband = 0;  // ISR writes here
 volatile uint8_t queue_tail_sband = 0;  // Main loop reads here
 volatile uint8_t queue_count_sband = 0;
-volatile absolute_time_t last_packet_time_sband;  // For LED green timing
+volatile absolute_time_t last_packet_time_sband;  // For LED blue timing
 
 // Global CRC error counter (similar to UHF)
 volatile uint8_t nCRC_sband = 0;
@@ -50,19 +50,13 @@ static uint32_t interval_Sband_RX = 1000000;        // 1 second
 static uint32_t interval_Sband_TX = 20*1010*1000;   // 20.2 seconds
 
 // State machine variables for non-blocking TX
-// Note: Sband_Transmitting is now controlled by global UHF_TX state (!UHF_TX = Sband TX)
+// Note: Sband_Transmitting is controlled by global UHF_TX state (!UHF_TX = Sband RX)
 static int current_tx_power_sband = 10;  // Start at 10 dBm, count down to -1
-static bool sband_rx_active = false;      // Track if we received packets (deprecated - use sband_last_rx_time)
 volatile absolute_time_t sband_last_rx_time = 0;  // Timestamp of last packet (for LED logic)
 static int radio_initialized = -1;      //  sband radio initialized flag
 
 // Static buffer for TX packets
 static uint8_t tx_packet_sband[250];
-
-// LED color contribution from SBand (for additive color mixing)
-volatile uint8_t sband_led_r = 0;
-volatile uint8_t sband_led_g = 0;
-volatile uint8_t sband_led_b = 0;
 
 /*
  * DIO1 GPIO Interrupt Service Routine for SBand
@@ -74,6 +68,8 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
     uint16_t irq_flags = sband_get_irq_status();
 
     if (irq_flags & SX1280_IRQ_RX_DONE) {
+        blue(); // no delay in telling the user the good news - a packet has arrived!
+        last_packet_time_sband = get_absolute_time();  // Turn it off after seen
         // Check if queue has space
         if (queue_count_sband < QUEUE_SIZE_SBAND) {
             volatile packet_sband_t *pkt = &packet_queue_sband[queue_head_sband];
@@ -95,11 +91,6 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
             // Update queue
             queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;
             queue_count_sband++;
-            last_packet_time_sband = get_absolute_time();
-
-            // Mark RX as active for LED color management
-            sband_rx_active = true;
-            sband_last_rx_time = get_absolute_time();
         }
 
         // Clear RX_DONE interrupt
@@ -142,7 +133,7 @@ void initSband(spi_pins_t *spi_pins) {
         // by sending a short and a long packet and measuring the time it takes
 
         // Test 1: Short packet
-        red();  // Indicate we are transmitting
+        cyan();  // Indicate we are transmitting
         absolute_time_t start_time = get_absolute_time();
 
         // Send a short packet (5 bytes)
@@ -172,7 +163,7 @@ void initSband(spi_pins_t *spi_pins) {
                absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
 
         sband_listen(); // Set the radio to RX mode
-        white();    // Indicate we are receiving
+        magenta();    // Indicate we are receiving
 
         // Note: IRQ will be enabled in main.c via unified dispatcher (RP2040 limitation)
         printf("SBand: DIO1 ISR will be enabled via unified dispatcher in main.c (GPIO %d)\n", SAMWISE_SBAND_D1_PIN);
@@ -195,7 +186,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     if (UHF_TX && radio_initialized == 0 &&
         absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
         previous_time_Sband_RX = get_absolute_time();
-        sprintf(buffer_Sband_RX, "SB_RXd ");  // using suffixes for version identification
+        sprintf(buffer_Sband_RX, "SB_RX ");  // using suffixes for version identification
 
         if (nCRC_sband > 0) {
             sprintf(buffer_Sband_RX + strlen(buffer_Sband_RX), "%d CRC ", nCRC_sband);
@@ -205,7 +196,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         // Process all packets in queue
         while (queue_count_sband > 0) {
             volatile packet_sband_t *pkt = &packet_queue_sband[queue_tail_sband];
-
+            blue();
             // Parse power value from packet
             // Format: "\xFF\xFF\xFF\xFFTX Power = %02d"
             int power = 0;
@@ -239,13 +230,12 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         }
     }
 
-    // SBAND_TX: State machine for non-blocking transmission
     // Transmit when UHF is in RX mode (!UHF_TX)
     // Detect UHF_TX state changes to handle ISR enable/disable
     static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
     if (UHF_TX != prev_UHF_TX) {
         if (UHF_TX) {
-            // UHF_TX went from false to true: Stop Sband TX, start Sband RX
+            // UHF_TX went from false to true, and it set red(): Stop Sband TX, start Sband RX
             sband_listen();
             gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
             buffer_Sband_TX[0] = '\0';  // Clear TX buffer
@@ -275,7 +265,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         }
 
         sband_packet_to_fifo(tx_packet_sband, 250);
-        sband_transmit();  // Send the packet
+        sband_transmit();  // Send the packet; UHF is managing the LED
 
         sprintf(buffer_Sband_TX, "Now sending TX Power = %02d\n", current_tx_power_sband);
 
@@ -293,22 +283,8 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             // Note: Don't switch to RX mode here - that happens when UHF_TX changes
         }
     }
-
-    // Update LED color contribution based on SBand state (deprecated - LED logic moved to main.c)
-    if (!UHF_TX) {
-        // Transmitting: Blue
-        sband_led_r = 0;
-        sband_led_g = 0;
-        sband_led_b = 0x10;
-    } else if (sband_rx_active && absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) < 2000000) {
-        // Receiving (within 2 seconds of last packet): Magenta (Red + Blue)
-        sband_led_r = 0x10;
-        sband_led_g = 0;
-        sband_led_b = 0x10;
-    } else {
-        // Listening: Cyan (Green + Blue)
-        sband_led_r = 0;
-        sband_led_g = 0x08;
-        sband_led_b = 0x10;
+    // If our "packet received" LED color is stale, switch back to indicating UHF TX only.
+    if (UHF_TX && absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) > 2000000) {
+        red();
     }
 }

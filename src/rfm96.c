@@ -467,7 +467,7 @@ uint8_t rfm96_get8(rfm96_reg_t reg)
      sleep_us(100);
      ASSERT(gpio_get(SAMWISE_RF_RST_PIN) == 1);
  
-     sleep_ms(5);
+     sleep_ms(5);           //Not sure this is needed
  }
  
  /*

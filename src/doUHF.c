@@ -86,11 +86,10 @@ void dio0_isr(uint gpio, uint32_t events) {
             // Update queue
             queue_head = (queue_head + 1) % QUEUE_SIZE;
             queue_count++;
-            last_packet_time = get_absolute_time();   //PHM probably don't need 2 of these
+            last_packet_time = get_absolute_time();
             green();
 
-            // Mark RX as active for LED color management
-            uhf_rx_active = true;
+            // When a packet comes in, signal it for a short time for LED logic
             uhf_last_rx_time = get_absolute_time();
         }
 
@@ -174,7 +173,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
     if (!UHF_TX &&
         absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
         previous_time_RADIO_RX = get_absolute_time();
-        sprintf(buffer_RADIO_RX, "RXdd ");  // DMA, Non-Blocking Clears out the results buffer
+        sprintf(buffer_RADIO_RX, "RX ");  // Clears out the results buffer
 
         if (nCRC > 0) {
             sprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), "%d CRC ", nCRC);
@@ -185,15 +184,17 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         while (queue_count > 0) {
             volatile packet_t *pkt = &packet_queue[queue_tail];
 
-            // Parse power value from packet
-            // Format: "\xFF\xFF\xFF\xFFTX Power = %02d"
+//  A packet has been received
+            green();
+
+            // Parse power value from packet.  Format: "\xFF\xFF\xFF\xFFTX Power = %02d"
             int power = 0;
             if (sscanf((char*)pkt->data + 4, "TX Power = %d", &power) == 1) {
                 // Adjust for negative power values (range: -1 to 17)
                 int hist_index = power + 1;  // Shift so -1 maps to 0
                 if (hist_index >= 0 && hist_index < 20) {
                     power_histogram[hist_index]++;
-// PHM:  We know when the we will receive the last packet, if we hear it
+// We know when the we will receive the last packet, if we hear it
 //      So let's set the transmitter to start after that.
                     previous_time_RADIO_TX = get_absolute_time() - interval_RADIO_TX +\
                      1050000* hist_index + 100000; // 0.1s after last RX
@@ -226,6 +227,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
 
     // If currently transmitting, send one packet per invocation
     if (UHF_TX) {
+        red();  // Indicate transmitting to user
         rfm96_set_tx_power(current_tx_power_uhf);
 
         // Create packet: preamble + power + spaces to fill 250 bytes
@@ -265,7 +267,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
 
             // Return to RX mode BEFORE re-enabling ISR (clears DIO0 from TX_DONE)
             rfm96_listen();
-            white();  // Indicate receiving
+            white();  // Indicate listening
             gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, true);
 
             buffer_RADIO_TX[0] = '\0';  // Zero the buffer out
@@ -285,21 +287,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);
     }
 
-    // Update LED color contribution based on UHF state
-    if (UHF_TX) {
-        // Transmitting: Red
-        uhf_led_r = 0x10;
-        uhf_led_g = 0;
-        uhf_led_b = 0;
-    } else if (uhf_rx_active && absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) < 500000) {
-        // Receiving (within .5 seconds of last packet): Green
-        uhf_led_r = 0;
-        uhf_led_g = 0x08;
-        uhf_led_b = 0;
-    } else {
-        // Listening: Yellow (Red + Green)
-        uhf_led_r = 0x10;
-        uhf_led_g = 0x08;
-        uhf_led_b = 0;
+    // If it's been a while since last RX packet, signal to user
+     if (!UHF_TX && uhf_rx_active && absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) > 500000) {
+        white();
     }
 }
