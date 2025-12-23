@@ -52,7 +52,7 @@ static uint32_t interval_Sband_TX = 20*1010*1000;   // 20.2 seconds
 // Note: Sband_Transmitting is controlled by global UHF_TX state (!UHF_TX = Sband RX)
 static int current_tx_power_sband = 10;             // Start at 10 dBm, count down to -1
 volatile absolute_time_t sband_last_rx_time = 0;    // Timestamp of last packet (for LED logic)
-static int radio_initialized = -1;                  //  sband radio initialized flag
+static bool radio_initialized = false;              // sband radio initialized flag (true = initialized, false = not initialized)
 
 // Static buffer for TX packets
 static uint8_t tx_packet_sband[250];
@@ -114,15 +114,20 @@ void initSband(spi_pins_t *spi_pins) {
 
 #ifdef SBAND_BROKEN_RADIO
     //For Hardware Debugging
-    while (radio_initialized = sband_init(spi_pins) != PICO_OK) {
+    while (sband_init(spi_pins) != PICO_OK) {
         printf("doSBand: Radio init failed, retrying in 0.1 second...\n");
         sleep_ms(100);
     }
+    radio_initialized = true;
 #else
-    radio_initialized = sband_init(spi_pins);
+    if (sband_init(spi_pins) == 0) {
+        radio_initialized = true;
+    } else {
+        radio_initialized = false;
+    }
 #endif
 
-    if (radio_initialized == 0) {
+    if (radio_initialized) {
         printf("SBand: Radio initialized\n");
 
         // Disable ISR during test to prevent interference with tx_done()
@@ -180,8 +185,9 @@ void initSband(spi_pins_t *spi_pins) {
  * Handles packet reception and transmission at regular intervals
  */
 void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
+    if (!radio_initialized) {return;}
     // SBAND_RX: Process packet queue (filled by ISR) - ONLY when UHF is transmitting
-    if (UHF_TX && radio_initialized == 0 &&
+    if (UHF_TX && radio_initialized &&
         absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
         previous_time_Sband_RX = get_absolute_time();
         sprintf(buffer_Sband_RX, "SB_RX ");  // using suffixes for version identification
@@ -248,7 +254,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     }
 
     // If currently transmitting (UHF in RX mode), send one packet per invocation
-    if (!UHF_TX && radio_initialized == 0) {
+    if (!UHF_TX && radio_initialized) {
         sband_set_tx_params(current_tx_power_sband, 0x02);  // Set power, ramp 20μs
 
         // Create packet: preamble + power + spaces to fill 250 bytes
