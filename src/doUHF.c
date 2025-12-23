@@ -57,7 +57,7 @@ volatile uint8_t uhf_led_b = 0;
 
 /*
  * DIO0 GPIO Interrupt Service Routine
- * Triggered when a packet is received (RX_DONE interrupt)
+ * Triggered when a packet is received (RX_DONE interrupt base on SAMWISE_RF_D0_PIN)
  * Copies packet from radio FIFO to queue using non-blocking DMA
  */
 void dio0_isr(uint gpio, uint32_t events) {
@@ -89,7 +89,7 @@ void dio0_isr(uint gpio, uint32_t events) {
             last_packet_time = get_absolute_time();
             green();
 
-            // When a packet comes in, signal it for a short time for LED logic
+            // When a packet comes in, signal it on the LED for a short time
             uhf_last_rx_time = get_absolute_time();
         }
 
@@ -99,7 +99,8 @@ void dio0_isr(uint gpio, uint32_t events) {
         // Continue listening for next packet (clears all IRQ flags, sets RX mode)
         rfm96_listen();
     }
-    // Note: If TX_DONE fires (bit 3), we ignore it - ISR is only for RX
+    // Note: If TX_DONE fires (bit 3), we ignore it - ISR is only for RX, and during
+    // TX we disable the ISR to prevent unnecessary interrupts.
 }
 
 /*
@@ -199,7 +200,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
                     previous_time_RADIO_TX = get_absolute_time() - interval_RADIO_TX +\
                      1050000* hist_index + 100000; // 0.1s after last RX
                 } else {
-                    printf("UHF Warning: Received out-of-range power value: %d\n", power);
+                    printf("UHF Warning: Ignoring received out-of-range power value: %d\n", power);
                 }
             } else {
                 printf("UHF Warning: Failed to parse power from packet\n");

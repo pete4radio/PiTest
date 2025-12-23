@@ -19,7 +19,6 @@ Lively LED color indication of received packets and transmissions.
 
 */
 
-
 // Packet queue structure definitions (for ISR access)
 #define QUEUE_SIZE_SBAND 15
 #define PACKET_SIZE_SBAND 256
@@ -51,9 +50,9 @@ static uint32_t interval_Sband_TX = 20*1010*1000;   // 20.2 seconds
 
 // State machine variables for non-blocking TX
 // Note: Sband_Transmitting is controlled by global UHF_TX state (!UHF_TX = Sband RX)
-static int current_tx_power_sband = 10;  // Start at 10 dBm, count down to -1
-volatile absolute_time_t sband_last_rx_time = 0;  // Timestamp of last packet (for LED logic)
-static int radio_initialized = -1;      //  sband radio initialized flag
+static int current_tx_power_sband = 10;             // Start at 10 dBm, count down to -1
+volatile absolute_time_t sband_last_rx_time = 0;    // Timestamp of last packet (for LED logic)
+static int radio_initialized = -1;                  //  sband radio initialized flag
 
 // Static buffer for TX packets
 static uint8_t tx_packet_sband[250];
@@ -165,7 +164,6 @@ void initSband(spi_pins_t *spi_pins) {
         sband_listen(); // Set the radio to RX mode
         magenta();    // Indicate we are receiving
 
-        // Note: IRQ will be enabled in main.c via unified dispatcher (RP2040 limitation)
         printf("SBand: DIO1 ISR will be enabled via unified dispatcher in main.c (GPIO %d)\n", SAMWISE_SBAND_D1_PIN);
     } else {
         printf("SBand: Radio initialization failed\n");
