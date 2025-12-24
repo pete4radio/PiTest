@@ -239,9 +239,12 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         tx_packet[3] = '\xFF';
         // Format power with leading zero or minus sign
         sprintf((char*)tx_packet + 4, "TX Power = %02d", current_tx_power_uhf);
-        // Restore spaces after sprintf's null terminator
-        for (int j = strlen((char*)tx_packet); j < 250; j++) {
-            tx_packet[j] = ' ';
+        // Copy current RX display buffer into packet after the TX Power string
+        size_t offset = 4 + strlen((char*)tx_packet + 4);
+        size_t copy_len = strlen(buffer_RADIO_RX);
+        if (copy_len > (size_t)(250 - offset)) copy_len = 250 - offset;
+        if (copy_len > 0) {
+            memcpy(tx_packet + offset, buffer_RADIO_RX, copy_len);
         }
 
         rfm96_packet_to_fifo(tx_packet, 250);
