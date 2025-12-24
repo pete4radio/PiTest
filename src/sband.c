@@ -274,6 +274,11 @@ void sband_reset(void) {
         printf("SBand: WARNING: Returning from reset despite BUSY timeout\n");
         // Continue anyway to prevent complete lockup
     }
+
+        if (sband_wait_busy_low() == 0) {
+        printf("SBand: Note: Returning from reset despite BUSY timeout\n");
+        printf("SBand: BUSY is %d after reset\n", gpio_get(SAMWISE_SBAND_D0_PIN));
+    }
 }
 
 // Set operating mode
