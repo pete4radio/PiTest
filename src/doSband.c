@@ -273,9 +273,12 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         tx_packet_sband[3] = '\xFF';
         // Format power with leading zero or minus sign
         sprintf((char*)tx_packet_sband + 4, "TX Power = %02d", current_tx_power_sband);
-        // Restore spaces after sprintf's null terminator
-        for (int j = strlen((char*)tx_packet_sband); j < 250; j++) {
-            tx_packet_sband[j] = ' ';
+        // Copy current SBand RX display buffer into packet after the TX Power string
+        size_t s_offset = 4 + strlen((char*)tx_packet_sband + 4);
+        size_t s_copy_len = strlen(buffer_Sband_RX);
+        if (s_copy_len > (size_t)(250 - s_offset)) s_copy_len = 250 - s_offset;
+        if (s_copy_len > 0) {
+            memcpy(tx_packet_sband + s_offset, buffer_Sband_RX, s_copy_len);
         }
 
         // Wait for TX completion. PHM Could also check for timeout on next invocation and before transmitting again.

@@ -89,6 +89,7 @@ static spi_inst_t *sband_spi = NULL;
 static uint8_t sband_cs_pin;
 static uint8_t sband_rst_pin;
 static uint8_t sband_d0_pin;
+static uint8_t sband_rxen_pin;
 static int sband_tx_dma_chan = -1;
 static int sband_rx_dma_chan = -1;
 static int radio_initialized = 0;
@@ -428,6 +429,8 @@ void sband_clear_irq_status(uint16_t mask) {
 
 // Put radio in RX mode (listen)
 void sband_listen(void) {
+    // Enable RX hardware path
+    gpio_put(sband_rxen_pin, 1);
     uint8_t cmd_data[3];
     cmd_data[0] = 0x00;  // periodBase
     cmd_data[1] = 0xFF;  // periodBaseCount MSB (0xFFFF = continuous RX)
@@ -443,6 +446,8 @@ void sband_listen(void) {
 
 // Put radio in TX mode (transmit)
 void sband_transmit(void) {
+    // Disable RX hardware path (enable TX path)
+    gpio_put(sband_rxen_pin, 0);
     uint8_t cmd_data[3];
     cmd_data[0] = 0x00;  // periodBase
     cmd_data[1] = 0x00;  // periodBaseCount MSB (0x0000 = no timeout)
@@ -601,6 +606,12 @@ int sband_init(spi_pins_t *spi_pins) {
     gpio_init(sband_d0_pin);
     gpio_set_dir(sband_d0_pin, GPIO_IN);
     gpio_pull_down(sband_d0_pin);
+
+    // Initialize RX enable pin (driven high for RX, low for TX)
+    sband_rxen_pin = SAMWISE_SBAND_RXEN_PIN;
+    gpio_init(sband_rxen_pin);
+    gpio_set_dir(sband_rxen_pin, GPIO_OUT);
+    gpio_put(sband_rxen_pin, 0); // Default to TX disabled (low)
 
     // Initialize D1 pin for interrupt (DIO1)
     gpio_init(SAMWISE_SBAND_D1_PIN);
