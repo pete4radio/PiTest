@@ -91,6 +91,7 @@ static uint8_t sband_rst_pin;
 static uint8_t sband_d0_pin;
 static int sband_tx_dma_chan = -1;
 static int sband_rx_dma_chan = -1;
+static int radio_initialized = 0;
 
 // DMA buffers
 static uint8_t sband_tx_combined[258];
@@ -149,6 +150,7 @@ static int sband_wait_busy_low(void) {
             sband_busy_timeout_count++;
             printf("SBand: BUSY timeout after %llu us\n",
                    (time_us_64() - start_time));
+            radio_initialized = false;  // Mark radio as uninitialized on BUSY timeout
             return -1;
         }
         sleep_us(1);  // Small delay to prevent busy-waiting
@@ -163,8 +165,9 @@ static void sband_spi_transfer(const uint8_t *tx_buf, uint8_t *rx_buf, uint16_t 
 
     // Wait for BUSY pin to go LOW before starting SPI transfer
     if (sband_wait_busy_low() != 0) {
-        printf("SBand: WARNING: Proceeding with SPI transfer despite BUSY timeout\n");
-        // Continue anyway to prevent complete lockup
+        printf("SBand: ERROR: BUSY timeout - radio marked uninitialized, aborting SPI transfer\n");
+        // Do not proceed - radio is marked as uninitialized
+        return;
     }
 
     // Configure TX DMA
@@ -626,8 +629,12 @@ int sband_init(spi_pins_t *spi_pins) {
     sband_reset();
 
     if (sband_wait_busy_low() != 0) {
-        printf("[File: %s, Function: %s, Line: %d] WARNING: Proceeding after BUSY timeout\n",
+        printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
                __FILE__, __func__, __LINE__);
+        // Release DMA channels before returning error
+        dma_channel_unclaim(sband_tx_dma_chan);
+        dma_channel_unclaim(sband_rx_dma_chan);
+        return -1;
     }
 
     // Send GET_STATUS to verify chip is responsive (simple 1-byte command)
@@ -640,16 +647,24 @@ int sband_init(spi_pins_t *spi_pins) {
     sband_set_mode(SX1280_MODE_STDBY_RC);
 
     if (sband_wait_busy_low() != 0) {
-        printf("[File: %s, Function: %s, Line: %d] WARNING: Proceeding after BUSY timeout\n",
+        printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
                __FILE__, __func__, __LINE__);
+        // Release DMA channels before returning error
+        dma_channel_unclaim(sband_tx_dma_chan);
+        dma_channel_unclaim(sband_rx_dma_chan);
+        return -1;
     }
 
     // Configure for LoRa mode
     sband_set_packet_type(SX1280_PACKET_TYPE_LORA);
 
     if (sband_wait_busy_low() != 0) {
-        printf("[File: %s, Function: %s, Line: %d] WARNING: Proceeding after BUSY timeout\n",
+        printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
             __FILE__, __func__, __LINE__);
+        // Release DMA channels before returning error
+        dma_channel_unclaim(sband_tx_dma_chan);
+        dma_channel_unclaim(sband_rx_dma_chan);
+        return -1;
     }
 
     sband_set_rf_frequency(2427000000);  // 2427 MHz

@@ -128,7 +128,7 @@ void initSband(spi_pins_t *spi_pins) {
 #endif
 
     if (radio_initialized) {
-        printf("SBand: Radio initialized\n");
+        printf("SBand: Radio initialization\n");
 
         // Disable ISR during test to prevent interference with tx_done()
         gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
@@ -147,7 +147,11 @@ void initSband(spi_pins_t *spi_pins) {
 
         int ip = 10000;
         while (!sband_tx_done() && ip--) { sleep_us(10); }
-        if (!sband_tx_done()) printf("SBand: TX timed out (short)\n");
+        if (!sband_tx_done()) { 
+            printf("SBand: TX timed out (short)\n");
+            radio_initialized = false;  // Mark radio as failed
+            return;
+        }
         printf("SBand: Time to send a short packet: %lld ms (%d iterations left)\n",
                absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
 
@@ -162,7 +166,11 @@ void initSband(spi_pins_t *spi_pins) {
 
         ip = 100000;
         while (!sband_tx_done() && ip--) { sleep_us(10); }
-        if (!sband_tx_done()) printf("SBand: TX timed out (long)\n");
+        if (!sband_tx_done()) {
+            printf("SBand: TX timed out (long)\n");
+            radio_initialized = false;  // Mark radio as failed
+            return;
+        }   
         printf("SBand: Time to send a long packet: %lld ms (%d iterations left)\n",
                absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
 
