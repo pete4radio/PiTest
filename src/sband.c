@@ -142,8 +142,8 @@ static int sband_dma_wait_both_with_timeout(sband_timeout_t *timeout_ctx) {
 }
 
 // Poll BUSY pin (D0) until LOW with timeout
-// Returns 0 on success (BUSY went LOW), -1 on timeout
-static int sband_wait_busy_low(void) {
+// Returns true if still busy (timed out), false if BUSY went LOW
+static bool sband_still_busy_after_wait(void) {
     uint64_t start_time = time_us_64();
 
     while (gpio_get(sband_d0_pin)) {  // While BUSY is HIGH
@@ -152,12 +152,12 @@ static int sband_wait_busy_low(void) {
             printf("SBand: BUSY timeout after %llu us\n",
                    (time_us_64() - start_time));
             radio_initialized = false;  // Mark radio as uninitialized on BUSY timeout
-            return -1;
+            return true;  // Still busy (timeout)
         }
         sleep_us(1);  // Small delay to prevent busy-waiting
     }
 
-    return 0;  // BUSY is now LOW
+    return false;  // BUSY is now LOW (success)
 }
 
 // Low-level SPI transfer with DMA
@@ -165,7 +165,7 @@ static void sband_spi_transfer(const uint8_t *tx_buf, uint8_t *rx_buf, uint16_t 
     sband_timeout_t timeout;
 
     // Wait for BUSY pin to go LOW before starting SPI transfer
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("SBand: ERROR: BUSY timeout - radio marked uninitialized, aborting SPI transfer\n");
         // Do not proceed - radio is marked as uninitialized
         return;
@@ -263,7 +263,7 @@ bool sband_reset(void) {
     bool success = true;
 
     // Check BUSY before reset
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("SBand: ERROR: BUSY timeout before reset\n");
         success = false;
         // Continue anyway to attempt hardware recovery
@@ -277,7 +277,7 @@ bool sband_reset(void) {
     sleep_ms(50);       // Extra delay to ensure stability per logic analyzer tests
 
     // Check BUSY after reset
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("SBand: ERROR: BUSY timeout after reset\n");
         success = false;
     }
@@ -290,7 +290,7 @@ void sband_set_mode(sx1280_mode_t mode) {
     uint8_t cmd_data[1];
     uint8_t cmd;
 
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Attempting set mode despite BUSY timeout\n",
                __FILE__, __func__, __LINE__);
     }
@@ -322,7 +322,7 @@ void sband_set_mode(sx1280_mode_t mode) {
 
     sband_write_command(cmd, cmd_data, data_len);
 
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
                __FILE__, __func__, __LINE__);
         printf("mode = %d; cmd = 0x%x; cmd_data[0] = 0x%x\n", mode, cmd, cmd_data[0]);
@@ -441,7 +441,7 @@ void sband_listen(void) {
 
     sband_write_command(SX1280_CMD_SET_RX, cmd_data, 3);
 
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
                __FILE__, __func__, __LINE__);
     }
@@ -458,7 +458,7 @@ void sband_transmit(void) {
 
     sband_write_command(SX1280_CMD_SET_TX, cmd_data, 3);
 
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
                __FILE__, __func__, __LINE__);
     }
@@ -653,7 +653,7 @@ int sband_init(spi_pins_t *spi_pins) {
         return -1;
     }
 
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
                __FILE__, __func__, __LINE__);
         // Release DMA channels before returning error
@@ -671,7 +671,7 @@ int sband_init(spi_pins_t *spi_pins) {
     // Chip should already be in STANDBY_RC after reset, but set it explicitly
     sband_set_mode(SX1280_MODE_STDBY_RC);
 
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
                __FILE__, __func__, __LINE__);
         // Release DMA channels before returning error
@@ -683,7 +683,7 @@ int sband_init(spi_pins_t *spi_pins) {
     // Configure for LoRa mode
     sband_set_packet_type(SX1280_PACKET_TYPE_LORA);
 
-    if (sband_wait_busy_low() != 0) {
+    if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
             __FILE__, __func__, __LINE__);
         // Release DMA channels before returning error
