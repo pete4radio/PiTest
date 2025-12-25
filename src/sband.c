@@ -593,6 +593,44 @@ int sband_verify_chip(char *version_out) {
     return 1;  // Success
 }
 
+// Decode and print SX1280 status byte
+static void sband_print_status_byte(uint8_t status, const char *context) {
+    uint8_t circuit_mode = (status >> 5) & 0x07;
+    uint8_t cmd_status = (status >> 2) & 0x07;
+    uint8_t busy = status & 0x01;
+
+    printf("SBand Status [%s]: 0x%02X\n", context, status);
+    
+    // Decode circuit mode (bits 7:5)
+    printf("  Circuit Mode (bits 7:5): 0x%X = ", circuit_mode);
+    switch (circuit_mode) {
+        case 0x0: printf("Reserved\n"); break;
+        case 0x1: printf("Reserved\n"); break;
+        case 0x2: printf("STDBY_RC\n"); break;
+        case 0x3: printf("STDBY_XOSC\n"); break;
+        case 0x4: printf("FS\n"); break;
+        case 0x5: printf("RX\n"); break;
+        case 0x6: printf("TX\n"); break;
+        case 0x7: printf("Reserved\n"); break;
+    }
+    
+    // Decode command status (bits 4:2)
+    printf("  Command Status (bits 4:2): 0x%X = ", cmd_status);
+    switch (cmd_status) {
+        case 0x0: printf("Reserved\n"); break;
+        case 0x1: printf("Success (command processed)\n"); break;
+        case 0x2: printf("Data available to host\n"); break;
+        case 0x3: printf("Command timeout (watchdog)\n"); break;
+        case 0x4: printf("Command processing error (invalid opcode/params)\n"); break;
+        case 0x5: printf("Failure to execute command\n"); break;
+        case 0x6: printf("Command TX done\n"); break;
+        case 0x7: printf("Reserved\n"); break;
+    }
+    
+    // Decode busy bit (bit 0)
+    printf("  Busy (bit 0): %d = %s\n", busy, busy ? "BUSY (processing)" : "IDLE");
+}
+
 // Initialize SBand radio
 int sband_init(spi_pins_t *spi_pins) {
     sband_spi = spi_pins->spi;
@@ -683,6 +721,9 @@ int sband_init(spi_pins_t *spi_pins) {
         dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
+
+  // Add detailed status printing
+  sband_print_status_byte(status_buf[0], "After reset");
 
     // Chip should already be in STANDBY_RC after reset, but set it explicitly
     sband_set_mode(SX1280_MODE_STDBY_RC);
