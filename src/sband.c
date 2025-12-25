@@ -90,6 +90,7 @@ static uint8_t sband_cs_pin;
 static uint8_t sband_rst_pin;
 static uint8_t sband_d0_pin;
 static uint8_t sband_rxen_pin;
+static uint8_t sband_txen_pin;
 static int sband_tx_dma_chan = -1;
 static int sband_rx_dma_chan = -1;
 static int radio_initialized = 0;
@@ -166,7 +167,7 @@ static void sband_spi_transfer(const uint8_t *tx_buf, uint8_t *rx_buf, uint16_t 
 
     // Wait for BUSY pin to go LOW before starting SPI transfer
     if (sband_still_busy_after_wait()) {
-        printf("SBand: ERROR: BUSY timeout - radio marked uninitialized, aborting SPI transfer\n");
+        printf("SBand: ERROR: BUSY timeout aborting SPI transfer\n");
         // Do not proceed - radio is marked as uninitialized
         return;
     }
@@ -432,8 +433,9 @@ void sband_clear_irq_status(uint16_t mask) {
 
 // Put radio in RX mode (listen)
 void sband_listen(void) {
-    // Enable RX hardware path
-    gpio_put(sband_rxen_pin, 1);
+    // Update the antenna relay
+    gpio_put(sband_txen_pin, 0);  // Disable TX path
+    gpio_put(sband_rxen_pin, 1);  // Enable RX path
     uint8_t cmd_data[3];
     cmd_data[0] = 0x00;  // periodBase
     cmd_data[1] = 0xFF;  // periodBaseCount MSB (0xFFFF = continuous RX)
@@ -449,8 +451,9 @@ void sband_listen(void) {
 
 // Put radio in TX mode (transmit)
 void sband_transmit(void) {
-    // Disable RX hardware path (enable TX path)
-    gpio_put(sband_rxen_pin, 0);
+    // Update the antenna relay
+    gpio_put(sband_rxen_pin, 0);  // Disable RX path
+    gpio_put(sband_txen_pin, 1);  // Enable TX path
     uint8_t cmd_data[3];
     cmd_data[0] = 0x00;  // periodBase
     cmd_data[1] = 0x00;  // periodBaseCount MSB (0x0000 = no timeout)
@@ -616,6 +619,12 @@ int sband_init(spi_pins_t *spi_pins) {
     gpio_set_dir(sband_rxen_pin, GPIO_OUT);
     gpio_put(sband_rxen_pin, 0); // Default to TX disabled (low)
 
+    // Initialize TX enable pin (driven high for TX, low for RX)
+    sband_txen_pin = SAMWISE_SBAND_TXEN_PIN;
+    gpio_init(sband_txen_pin);
+    gpio_set_dir(sband_txen_pin, GPIO_OUT);
+    gpio_put(sband_txen_pin, 0); // Default to TX disabled (low)
+
     // Initialize D1 pin for interrupt (DIO1)
     gpio_init(SAMWISE_SBAND_D1_PIN);
     gpio_set_dir(SAMWISE_SBAND_D1_PIN, GPIO_IN);
@@ -667,6 +676,13 @@ int sband_init(spi_pins_t *spi_pins) {
     uint8_t status_buf[1];
     sband_spi_transfer(cmd_buf, status_buf, 1);
     printf("SBand: Status after reset: 0x%02X\n", status_buf[0]);
+    if (status_buf[0] == 0x00 || status_buf[0] == 0xFF) {
+        printf("SBand: ERROR: No status byte from SX1280 after reset\n");
+        // Release DMA channels before returning error
+        dma_channel_unclaim(sband_tx_dma_chan);
+        dma_channel_unclaim(sband_rx_dma_chan);
+        return -1;
+    }
 
     // Chip should already be in STANDBY_RC after reset, but set it explicitly
     sband_set_mode(SX1280_MODE_STDBY_RC);

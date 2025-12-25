@@ -24,6 +24,7 @@
     #define SAMWISE_RF_D0_PIN (20)
 
     #define SAMWISE_SBAND_SPI (1)
+    #define SAMWISE_SBAND_TXEN_PIN (9)
     #define SAMWISE_SBAND_RST_PIN (10)
     #define SAMWISE_SBAND_CS_PIN (14)
     #define SAMWISE_SBAND_D0_PIN (15)
