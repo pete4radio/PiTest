@@ -258,28 +258,31 @@ static void sband_read_register(uint16_t addr, uint8_t *data, uint8_t len) {
  ******************************************************************************/
 
 // Reset the SX1280
-void sband_reset(void) {
-    
+// Returns true if reset completed without BUSY timeouts, false otherwise
+bool sband_reset(void) {
+    bool success = true;
+
+    // Check BUSY before reset
     if (sband_wait_busy_low() != 0) {
-        printf("SBand: WARNING: Proceeding with reset despite BUSY timeout\n");
-        // Continue anyway to prevent complete lockup
+        printf("SBand: ERROR: BUSY timeout before reset\n");
+        success = false;
+        // Continue anyway to attempt hardware recovery
     }
-    
+
+    // Perform hardware reset
     gpio_put(sband_rst_pin, 0);
     sleep_us(50);       // Hold reset low for at least 10us
     gpio_put(sband_rst_pin, 1);
-    sleep_us(100);  // Wait for chip to boot (15us min)
-    sleep_ms(50);   // Extra delay to ensure stability per logic analyzer tests
+    sleep_us(100);      // Wait for chip to boot (15us min)
+    sleep_ms(50);       // Extra delay to ensure stability per logic analyzer tests
 
+    // Check BUSY after reset
     if (sband_wait_busy_low() != 0) {
-        printf("SBand: WARNING: Returning from reset despite BUSY timeout\n");
-        // Continue anyway to prevent complete lockup
+        printf("SBand: ERROR: BUSY timeout after reset\n");
+        success = false;
     }
 
-        if (sband_wait_busy_low() == 0) {
-        printf("SBand: Note: Returning from reset despite BUSY timeout\n");
-        printf("SBand: BUSY is %d after reset\n", gpio_get(SAMWISE_SBAND_D0_PIN));
-    }
+    return success;
 }
 
 // Set operating mode
@@ -642,7 +645,13 @@ int sband_init(spi_pins_t *spi_pins) {
                          0, false);
 
     // Reset radio
-    sband_reset();
+    if (!sband_reset()) {
+        printf("SBand: ERROR: Reset failed with BUSY timeout - aborting initialization\n");
+        // Release DMA channels before returning error
+        dma_channel_unclaim(sband_tx_dma_chan);
+        dma_channel_unclaim(sband_rx_dma_chan);
+        return -1;
+    }
 
     if (sband_wait_busy_low() != 0) {
         printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",

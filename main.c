@@ -211,7 +211,7 @@ void core1_entry() {
         doUHF((char*)buffer_RADIO_RX, (char*)buffer_RADIO_TX);
 
         // SBand operations: doSband handles SBand radio RX/TX state machine
-        doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
+        doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX, &spi_pins_sband);
     }
 }
 

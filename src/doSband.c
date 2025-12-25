@@ -105,84 +105,106 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
     }
 }
 
+#define TRY_INIT 10  // Maximum initialization attempts
+
+/*
+ * Attempt to initialize SBand radio with retry logic
+ * Includes TX validation tests
+ * Returns: true if initialization successful, false if all retries exhausted
+ */
+static bool attempt_sband_init(spi_pins_t *spi_pins) {
+    for (int attempt = 1; attempt <= TRY_INIT; attempt++) {
+        if (attempt > 1) {
+            printf("SBand: Retry attempt %d/%d...\n", attempt, TRY_INIT);
+            sleep_ms(100);  // Delay between retries
+        }
+
+        // Attempt basic initialization
+        if (sband_init(spi_pins) != 0) {
+            printf("SBand: Init attempt %d/%d failed in sband_init()\n",
+                   attempt, TRY_INIT);
+            continue;  // Try again
+        }
+
+        printf("SBand: Init attempt %d/%d: sband_init() succeeded, running validation tests...\n",
+               attempt, TRY_INIT);
+
+        // Disable ISR during validation tests
+        gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
+
+        // TX Validation Test 1: Short packet
+        cyan();  // Indicate transmitting
+        absolute_time_t start_time = get_absolute_time();
+
+        uint8_t short_data[5] = {0xFF, 0xAA, 0x55, 0xBB, 0xCC};
+        sband_packet_to_fifo(short_data, 5);
+        sband_transmit();
+
+        int ip = 10000;
+        while (!sband_tx_done() && ip--) { sleep_us(10); }
+
+        if (!sband_tx_done()) {
+            printf("SBand: Init attempt %d/%d failed: TX validation timeout (short packet)\n",
+                   attempt, TRY_INIT);
+            continue;  // Try again
+        }
+
+        printf("SBand: Short packet TX: %lld ms (%d iterations left)\n",
+               absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
+
+        // TX Validation Test 2: Long packet
+        start_time = get_absolute_time();
+
+        uint8_t long_data[250];
+        memset(long_data, 0xAA, 250);
+        sband_packet_to_fifo(long_data, 250);
+        sband_transmit();
+
+        ip = 100000;
+        while (!sband_tx_done() && ip--) { sleep_us(10); }
+
+        if (!sband_tx_done()) {
+            printf("SBand: Init attempt %d/%d failed: TX validation timeout (long packet)\n",
+                   attempt, TRY_INIT);
+            continue;  // Try again
+        }
+
+        printf("SBand: Long packet TX: %lld ms (%d iterations left)\n",
+               absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
+
+        // All tests passed!
+        printf("SBand: Init attempt %d/%d: ALL VALIDATION TESTS PASSED\n",
+               attempt, TRY_INIT);
+
+        sband_listen();  // Set to RX mode
+        magenta();       // Indicate receiving
+
+        return true;  // Success!
+    }
+
+    // All retries exhausted
+    printf("SBand: ERROR: Initialization failed after %d attempts\n", TRY_INIT);
+    return false;
+}
+
 /*
  * Initialize SBand radio with tx_done test
  * Includes ISR setup and tx_done timing test
  */
 void initSband(spi_pins_t *spi_pins) {
-    // Initialize radio
-
-#ifdef SBAND_BROKEN_RADIO
-    //For Hardware Debugging
-    while (sband_init(spi_pins) != PICO_OK) {
-        printf("doSBand: Radio init failed, retrying in 0.1 second...\n");
-        sleep_ms(100);
-    }
-    radio_initialized = true;
-#else
-    if (sband_init(spi_pins) == 0) {
-        radio_initialized = true;
-    } else {
-        radio_initialized = false;
-    }
-#endif
+    // Attempt initialization with retries
+    radio_initialized = attempt_sband_init(spi_pins);
 
     if (radio_initialized) {
-        printf("SBand: Radio initialization\n");
-
-        // Disable ISR during test to prevent interference with tx_done()
-        gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
-
-        // Check that we can know here when the transmitter has completed
-        // by sending a short and a long packet and measuring the time it takes
-
-        // Test 1: Short packet
-        cyan();  // Indicate we are transmitting
-        absolute_time_t start_time = get_absolute_time();
-
-        // Send a short packet (5 bytes)
-        uint8_t short_data[5] = {0xFF, 0xAA, 0x55, 0xBB, 0xCC};
-        sband_packet_to_fifo(short_data, 5);
-        sband_transmit();  // Send the packet
-
-        int ip = 10000;
-        while (!sband_tx_done() && ip--) { sleep_us(10); }
-        if (!sband_tx_done()) { 
-            printf("SBand: TX timed out (short)\n");
-            radio_initialized = false;  // Mark radio as failed
-            return;
-        }
-        printf("SBand: Time to send a short packet: %lld ms (%d iterations left)\n",
-               absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
-
-        // Test 2: Long packet
-        start_time = get_absolute_time();
-
-        // Send a long packet (250 bytes)
-        uint8_t long_data[250];
-        memset(long_data, 0xAA, 250);
-        sband_packet_to_fifo(long_data, 250);
-        sband_transmit();  // Send the packet
-
-        ip = 100000;
-        while (!sband_tx_done() && ip--) { sleep_us(10); }
-        if (!sband_tx_done()) {
-            printf("SBand: TX timed out (long)\n");
-            radio_initialized = false;  // Mark radio as failed
-            return;
-        }   
-        printf("SBand: Time to send a long packet: %lld ms (%d iterations left)\n",
-               absolute_time_diff_us(start_time, get_absolute_time()) / 1000, ip);
-
-        sband_listen(); // Set the radio to RX mode
-        magenta();    // Indicate we are receiving
-
-        printf("SBand: DIO1 ISR will be enabled via unified dispatcher in main.c (GPIO %d)\n", SAMWISE_SBAND_D1_PIN);
+        printf("SBand: Radio initialization SUCCESSFUL\n");
+        printf("SBand: DIO1 ISR will be enabled via unified dispatcher in main.c (GPIO %d)\n",
+               SAMWISE_SBAND_D1_PIN);
     } else {
-        printf("SBand: Radio initialization failed\n");
+        printf("SBand: Radio initialization FAILED - radio will remain disabled\n");
     }
 
-    // Initialize timing variables
+    // Initialize timing variables regardless of init success
+    // (doSband() checks radio_initialized before using radio)
     previous_time_Sband_RX = get_absolute_time();   //  Baseline for checking the RX queue
     previous_time_Sband_TX = get_absolute_time();   //  Baseline for starting TX cycles
     last_packet_time_sband = get_absolute_time();   //  Baseline for LED green (packet received) blink duration
@@ -192,8 +214,46 @@ void initSband(spi_pins_t *spi_pins) {
  * Main SBand operation loop (RX/TX timing)
  * Handles packet reception and transmission at regular intervals
  */
-void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
+void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX, spi_pins_t *spi_pins) {
+    // Handle UHF_TX state changes FIRST (must happen even if radio not initialized)
+    // This allows re-initialization attempts when transitioning to TX mode
+    static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
+    if (UHF_TX != prev_UHF_TX) {
+        if (UHF_TX) {
+            // UHF_TX went from false to true: Stop Sband TX, start Sband RX
+            if (radio_initialized) {
+                sband_listen();
+                gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
+            }
+            buffer_Sband_TX[0] = '\0';  // Clear TX buffer
+        } else {
+            // UHF_TX went from true to false: Stop Sband RX, start Sband TX
+
+            // If radio not initialized, attempt re-initialization
+            if (!radio_initialized) {
+                printf("SBand: Radio not initialized, attempting re-initialization...\n");
+                radio_initialized = attempt_sband_init(spi_pins);
+
+                if (radio_initialized) {
+                    printf("SBand: Re-initialization SUCCESSFUL\n");
+                } else {
+                    printf("SBand: Re-initialization FAILED - skipping S-band operations\n");
+                }
+            }
+
+            // Only proceed with TX setup if radio is initialized
+            if (radio_initialized) {
+                gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
+                sband_set_mode(SX1280_MODE_STDBY_RC);
+                current_tx_power_sband = 10;  // Start at 10 dBm
+            }
+        }
+        prev_UHF_TX = UHF_TX;
+    }
+
+    // Skip all radio operations if not initialized
     if (!radio_initialized) {return;}
+
     // SBAND_RX: Process packet queue (filled by ISR) - ONLY when UHF is transmitting
     if (UHF_TX && radio_initialized &&
         absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
@@ -242,25 +302,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         }
     }
 
-    // Transmit when UHF is in RX mode (!UHF_TX)
-    // Detect UHF_TX state changes to handle ISR enable/disable
-    static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
-    if (UHF_TX != prev_UHF_TX) {
-        if (UHF_TX) {
-            // UHF_TX went from false to true, and it set red(): Stop Sband TX, start Sband RX
-            sband_listen();
-            gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
-            buffer_Sband_TX[0] = '\0';  // Clear TX buffer
-        } else {
-            // UHF_TX went from true to false: Stop Sband RX, start Sband TX
-            gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
-            // Put radio in STDBY mode before TX (required for SX1280)
-            sband_set_mode(SX1280_MODE_STDBY_RC);
-            current_tx_power_sband = 10;  // Start at 10 dBm
-        }
-        prev_UHF_TX = UHF_TX;
-    }
-
+    // SBAND_TX: Transmit when UHF is in RX mode (!UHF_TX)
     // If currently transmitting (UHF in RX mode), send one packet per invocation
     if (!UHF_TX && radio_initialized) {
         sband_set_tx_params(current_tx_power_sband, 0x02);  // Set power, ramp 20μs

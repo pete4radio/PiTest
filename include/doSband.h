@@ -8,7 +8,7 @@
 void initSband(spi_pins_t *spi_pins);
 
 // Main SBand operation loop (RX/TX timing)
-void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX);
+void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX, spi_pins_t *spi_pins);
 
 // ISR handler (called by GPIO interrupt)
 void sband_dio1_isr(uint gpio, uint32_t events);

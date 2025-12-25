@@ -84,7 +84,7 @@ typedef enum {
 
 // API functions
 int sband_init(spi_pins_t *spi_pins);
-void sband_reset(void);
+bool sband_reset(void);  // Returns true on success, false on BUSY timeout
 void sband_set_mode(sx1280_mode_t mode);
 void sband_set_packet_type(sx1280_packet_type_t type);
 void sband_set_rf_frequency(uint32_t freq_hz);
