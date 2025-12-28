@@ -373,7 +373,7 @@ int main() {
             printf(buffer_MPPT2);
             printf(buffer_Power);
             printf(buffer_ADC);
-            printf(buffer_RADIO_TX);
+            printf((const char*)buffer_RADIO_TX);
             printf("%s\n", buffer_RADIO_RX);
             // Print SBand buffers
             // Display SBand BUSY timeout errors
@@ -381,12 +381,12 @@ int main() {
                 printf("SBand: BUSY timeout errors: %lu\n", sband_busy_timeout_count);
                 sband_busy_timeout_count = 0;  // Clear counter after displaying
             }
-            if (strlen(buffer_Sband_TX) > 0) {
-                printf("SBand TX: %s", buffer_Sband_TX);
+            if (strlen((const char*)buffer_Sband_TX) > 0) {
+                printf("SBand TX: %s", (const char*)buffer_Sband_TX);
                 buffer_Sband_TX[0] = '\0';  // Clear buffer after printing  PHM is this necessary?
             }
-            if (strlen(buffer_Sband_RX) > 0) {
-                printf("SBand RX: %s\n", buffer_Sband_RX);
+            if (strlen((const char*)buffer_Sband_RX) > 0) {
+                printf("SBand RX: %s\n", (const char*)buffer_Sband_RX);
                 buffer_Sband_RX[0] = '\0';  // Clear buffer after printing  PHM is this necessary?
             }
             printf(buffer_UART);
