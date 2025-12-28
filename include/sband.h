@@ -83,7 +83,7 @@ typedef enum {
 #define SX1280_IRQ_PREAMBLE_DETECTED 0x8000
 
 // API functions
-int sband_init(spi_pins_t *spi_pins);
+int sband_init(void);
 bool sband_reset(void);  // Returns true on success, false on BUSY timeout
 void sband_set_mode(sx1280_mode_t mode);
 void sband_set_packet_type(sx1280_packet_type_t type);

@@ -112,7 +112,7 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
  * Includes TX validation tests
  * Returns: true if initialization successful, false if all retries exhausted
  */
-static bool attempt_sband_init(spi_pins_t *spi_pins) {
+static bool attempt_sband_init(void) {
     for (int attempt = 1; attempt <= TRY_INIT; attempt++) {
         if (attempt > 1) {
             printf("SBand: Retry attempt %d/%d...\n", attempt, TRY_INIT);
@@ -120,7 +120,7 @@ static bool attempt_sband_init(spi_pins_t *spi_pins) {
         }
 
         // Attempt basic initialization
-        if (sband_init(spi_pins) != 0) {
+        if (sband_init() != 0) {
             printf("SBand: Init attempt %d/%d failed in sband_init()\n",
                    attempt, TRY_INIT);
             continue;  // Try again
@@ -191,9 +191,9 @@ static bool attempt_sband_init(spi_pins_t *spi_pins) {
  * Initialize SBand radio with tx_done test
  * Includes ISR setup and tx_done timing test
  */
-void initSband(spi_pins_t *spi_pins) {
+void initSband(void) {
     // Attempt initialization with retries
-    radio_initialized = attempt_sband_init(spi_pins);
+    radio_initialized = attempt_sband_init();
 
     if (radio_initialized) {
         printf("SBand: Radio initialization SUCCESSFUL\n");
@@ -214,7 +214,7 @@ void initSband(spi_pins_t *spi_pins) {
  * Main SBand operation loop (RX/TX timing)
  * Handles packet reception and transmission at regular intervals
  */
-void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX, spi_pins_t *spi_pins) {
+void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     // Handle UHF_TX state changes FIRST (must happen even if radio not initialized)
     // This allows re-initialization attempts when transitioning to TX mode
     static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
@@ -232,7 +232,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX, spi_pins_t *spi_pins)
             // If radio not initialized, attempt re-initialization
             if (!radio_initialized) {
                 printf("SBand: Radio not initialized, attempting re-initialization...\n");
-                radio_initialized = attempt_sband_init(spi_pins);
+                radio_initialized = attempt_sband_init();
 
                 if (radio_initialized) {
                     printf("SBand: Re-initialization SUCCESSFUL\n");

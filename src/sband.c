@@ -632,8 +632,8 @@ static void sband_print_status_byte(uint8_t status, const char *context) {
 }
 
 // Initialize SBand radio
-int sband_init(spi_pins_t *spi_pins) {
-    sband_spi = spi_pins->spi;
+int sband_init(void) {
+    sband_spi = SAMWISE_SBAND_SPI_INSTANCE;
     sband_cs_pin = SAMWISE_SBAND_CS_PIN;
     sband_rst_pin = SAMWISE_SBAND_RST_PIN;
     sband_d0_pin = SAMWISE_SBAND_D0_PIN;

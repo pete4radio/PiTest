@@ -9,10 +9,10 @@
 #define SBAND_MIN_POWER 5         // Minimum TX power in dBm
 
 // Initialize SBand radio (includes ISR setup and tx_done test)
-void initSband(spi_pins_t *spi_pins);
+void initSband(void);
 
 // Main SBand operation loop (RX/TX timing)
-void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX, spi_pins_t *spi_pins);
+void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX);
 
 // ISR handler (called by GPIO interrupt)
 void sband_dio1_isr(uint gpio, uint32_t events);

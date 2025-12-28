@@ -16,6 +16,7 @@
     */
 
     #define SAMWISE_RF_SPI (0)
+    #define SAMWISE_RF_SPI_INSTANCE spi0
     #define SAMWISE_RF_SCK_PIN (18)
     #define SAMWISE_RF_MOSI_PIN (19)
     #define SAMWISE_RF_MISO_PIN (16)
@@ -24,6 +25,7 @@
     #define SAMWISE_RF_D0_PIN (20)
 
     #define SAMWISE_SBAND_SPI (1)
+    #define SAMWISE_SBAND_SPI_INSTANCE spi1
     #define SAMWISE_SBAND_TXEN_PIN (9)
     #define SAMWISE_SBAND_RST_PIN (10)
     #define SAMWISE_SBAND_CS_PIN (14)
@@ -142,7 +144,7 @@ typedef enum
 /*
  * Initializes an RFM9X radio.
  */
-int rfm96_init(spi_pins_t *spi_pins);
+int rfm96_init(void);
 
 #define _SAP_FLAGS_ACK_REQUEST 2
 

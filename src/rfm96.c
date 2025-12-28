@@ -48,7 +48,7 @@ extern volatile uint8_t nCRC;
 // 
 
 #ifdef PICO
-    spi_inst_t *global_spi = spi0;
+    spi_inst_t *global_spi = SAMWISE_RF_SPI_INSTANCE;
 #else
     spi_inst_t *global_spi = spi1;
 #endif
@@ -122,7 +122,7 @@ int reg_read(const uint8_t reg, uint8_t *buf, uint8_t nbytes);
 
 void rfm96_reset();
 
-int rfm96_init(spi_pins_t *spi_pins);
+int rfm96_init(void);
 
 /*******************************************************************************
 * Function Definitions
@@ -1039,11 +1039,10 @@ uint8_t rfm96_get_mode()
  }
  
  
- int rfm96_init(spi_pins_t *spi_pins)
+ int rfm96_init(void)
 //  Initialization sets up pins, does a reset, allocates and checks the chip ID
 //  and sets up the radio for LoRa mode.  It also calibrates the oscillator and
 //  sets the frequency to RFM96_FREQUENCY and turns on the receiver.
-//  The argument is passed by reference so spi can be modified
     { 
  #ifndef PICO
      // Setup RF regulator on the PiCubed board
@@ -1074,11 +1073,10 @@ uint8_t rfm96_get_mode()
      gpio_set_function(SAMWISE_RF_SCK_PIN, GPIO_FUNC_SPI);
      gpio_set_function(SAMWISE_RF_MOSI_PIN, GPIO_FUNC_SPI);
      gpio_set_function(SAMWISE_RF_MISO_PIN, GPIO_FUNC_SPI);
-     
+
      rfm96_reset();
      busy_wait_ms(10);
-     spi_pins->spi = global_spi;
- 
+
      // RFM9X.pdf 4.3 p75:
      // CPOL = 0, CPHA = 0 (mode 0)
      // MSB first

@@ -107,9 +107,9 @@ void dio0_isr(uint gpio, uint32_t events) {
  * Initialize UHF radio with tx_done test
  * Includes ISR setup and tx_done timing test
  */
-void initUHF(spi_pins_t *spi_pins) {
+void initUHF(void) {
     // Initialize radio
-    int radio_initialized = rfm96_init(spi_pins);
+    int radio_initialized = rfm96_init();
 
     if (radio_initialized == 0) {
         printf("UHF: Radio initialized\n");

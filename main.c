@@ -75,29 +75,7 @@ char buffer_GPS[BUFLEN] = {0}; // Define the buffer for GPS data
 char command_buffer[BUFLEN] = "";
 char response_buffer[BUFLEN] = "";
 size_t cmd_idx = 0;  // index into command_buffer
-int rfm96_init(spi_pins_t *spi_pins);   //declaration for init which lives in rfm96.c
-//  define storage and load them with values from pins.h  PHM why not just use them from pins.h?
-spi_pins_t spi_pins =
-{
-    .RESET = SAMWISE_RF_RST_PIN,    // UHF reset pin
-    .CIPO = SAMWISE_RF_MISO_PIN,    // UHF MISO on GPIO 16
-    .COPI = SAMWISE_RF_MOSI_PIN,    // UHF MOSI on GPIO 19
-    .SCK = SAMWISE_RF_SCK_PIN,      // UHF SCK on GPIO 18
-    .CS = SAMWISE_RF_CS_PIN,        // UHF chip select on GPIO 17
-    .D0 = SAMWISE_RF_D0_PIN,        // UHF interrupt on GPIO 20
-    .spi = spi0                     // UHF uses SPI0
-};
-
-// SBand SPI pins (separate SPI1 bus)
-spi_pins_t spi_pins_sband = {
-    .RESET = SAMWISE_SBAND_RST_PIN,  // SBand reset on GPIO 10
-    .CIPO = SAMWISE_SBAND_MISO_PIN,  // SBand MISO on GPIO 28
-    .COPI = SAMWISE_SBAND_MOSI_PIN,  // SBand MOSI on GPIO 27
-    .SCK = SAMWISE_SBAND_SCK_PIN,    // SBand SCK on GPIO 26
-    .CS = SAMWISE_SBAND_CS_PIN,      // SBand CS on GPIO 14
-    .D0 = SAMWISE_SBAND_D0_PIN,      // SBand interrupt on GPIO 15
-    .spi = spi1                       // Separate SPI1 instance
-};
+int rfm96_init(void);   //declaration for init which lives in rfm96.c
 
 // for the I2C scanner, these I2C addresses are reserved
 bool reserved_addr(uint8_t addr) {
@@ -185,11 +163,11 @@ void core1_entry() {
 
     // Initialize UHF radio (includes tx_done test)
     printf("Core 1: Initializing UHF radio...\n");
-    initUHF(&spi_pins);
+    initUHF();
 
     // Initialize SBand radio (includes tx_done test)
     printf("Core 1: Initializing SBand radio...\n");
-    initSband(&spi_pins_sband);
+    initSband();
 
     // Setup unified GPIO IRQ handler on Core 1 (after both radios initialized)
     // ISRs will now fire on Core 1, naturally blocking doUHF/doSband (no SPI contention)
@@ -211,7 +189,7 @@ void core1_entry() {
         doUHF((char*)buffer_RADIO_RX, (char*)buffer_RADIO_TX);
 
         // SBand operations: doSband handles SBand radio RX/TX state machine
-        doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX, &spi_pins_sband);
+        doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
     }
 }
 

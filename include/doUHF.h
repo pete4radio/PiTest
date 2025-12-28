@@ -10,7 +10,7 @@
 #define UHF_TIME_ON_THE_AIR 1100  // Time per transmission in milliseconds
 
 // Initialize UHF radio (includes ISR setup and tx_done test)
-void initUHF(spi_pins_t *spi_pins);
+void initUHF(void);
 
 // Main UHF operation loop (RX/TX timing)
 void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX);
