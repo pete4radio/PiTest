@@ -714,6 +714,8 @@ int sband_init(spi_pins_t *spi_pins) {
     uint8_t status_buf[1];
     sband_spi_transfer(cmd_buf, status_buf, 1);
     printf("SBand: Status after reset: 0x%02X\n", status_buf[0]);
+// Add detailed status printing
+    sband_print_status_byte(status_buf[0], "After reset");
     if (status_buf[0] == 0x00 || status_buf[0] == 0xFF) {
         printf("SBand: ERROR: No status byte from SX1280 after reset\n");
         // Release DMA channels before returning error
@@ -721,9 +723,6 @@ int sband_init(spi_pins_t *spi_pins) {
         dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
-
-  // Add detailed status printing
-  sband_print_status_byte(status_buf[0], "After reset");
 
     // Chip should already be in STANDBY_RC after reset, but set it explicitly
     sband_set_mode(SX1280_MODE_STDBY_RC);

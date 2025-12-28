@@ -105,7 +105,7 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
     }
 }
 
-#define TRY_INIT 10  // Maximum initialization attempts
+#define TRY_INIT 20  // Maximum initialization attempts
 
 /*
  * Attempt to initialize SBand radio with retry logic
@@ -116,7 +116,7 @@ static bool attempt_sband_init(spi_pins_t *spi_pins) {
     for (int attempt = 1; attempt <= TRY_INIT; attempt++) {
         if (attempt > 1) {
             printf("SBand: Retry attempt %d/%d...\n", attempt, TRY_INIT);
-            sleep_ms(100);  // Delay between retries
+            sleep_ms(1000);  // Delay between retries
         }
 
         // Attempt basic initialization
