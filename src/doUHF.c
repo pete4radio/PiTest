@@ -43,7 +43,7 @@ static uint32_t interval_RADIO_TX = 20*1010*1000;   // 20.2 seconds
 volatile bool UHF_TX = false;
 
 // State machine variables for non-blocking TX
-static int current_tx_power_uhf = 10;  // Start at 10 dBm, count down to -1
+static int current_tx_power_uhf = UHF_MAX_POWER;  // Start at max power, count down to min
 static bool uhf_rx_active = false;     // Track if we received packets (deprecated - use uhf_last_rx_time)
 volatile absolute_time_t uhf_last_rx_time = 0;  // Timestamp of last packet (for LED logic)
 
@@ -192,13 +192,13 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
             int power = 0;
             if (sscanf((char*)pkt->data + 4, "TX Power = %d", &power) == 1) {
                 // Adjust for negative power values (range: -1 to 17)
-                int hist_index = power + 1;  // Shift so -1 maps to 0
+                int hist_index = power - UHF_MIN_POWER;  // Map min power to index 0
                 if (hist_index >= 0 && hist_index < 20) {
                     power_histogram[hist_index]++;
 // We know when the we will receive the last packet, if we hear it
 //      So let's set the transmitter to start after that.
                     previous_time_RADIO_TX = get_absolute_time() - interval_RADIO_TX +\
-                     1050000* hist_index + 100000; // 0.1s after last RX
+                     (UHF_TIME_ON_THE_AIR * 1000) * hist_index + 100000; // 0.1s after last RX
                 } else {
                     printf("UHF Warning: Ignoring received out-of-range power value: %d\n", power);
                 }
@@ -262,10 +262,10 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         current_tx_power_uhf--;
 
         // Check if transmission cycle is complete
-        if (current_tx_power_uhf < -1) {
+        if (current_tx_power_uhf < UHF_MIN_POWER) {
             // Transmission cycle complete - switch to SBand TX, UHF RX
             UHF_TX = false;
-            current_tx_power_uhf = 10;  // Reset for next cycle.
+            current_tx_power_uhf = UHF_MAX_POWER;  // Reset for next cycle
         //  If the power supply can provide 1.5A, set this and the Sband
         //  parameter of the same name to 20.  PHM
 
@@ -285,7 +285,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         // Start transmission cycle - switch to UHF TX, SBand RX
         previous_time_RADIO_TX = get_absolute_time();
         UHF_TX = true;
-        current_tx_power_uhf = 10;  // Start at 10 dBm
+        current_tx_power_uhf = UHF_MAX_POWER;  // Start at max power
 
         // Disable ISR during TX
         gpio_set_irq_enabled(SAMWISE_RF_D0_PIN, GPIO_IRQ_EDGE_RISE, false);

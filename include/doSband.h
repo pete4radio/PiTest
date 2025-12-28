@@ -4,6 +4,10 @@
 #include "pico/time.h"
 #include "pins.h"
 
+// S-band Radio Power Configuration
+#define SBAND_MAX_POWER 13        // Maximum TX power in dBm (SX1280 hardware limit)
+#define SBAND_MIN_POWER 5         // Minimum TX power in dBm
+
 // Initialize SBand radio (includes ISR setup and tx_done test)
 void initSband(spi_pins_t *spi_pins);
 

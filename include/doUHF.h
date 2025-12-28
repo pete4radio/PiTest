@@ -4,6 +4,11 @@
 #include "pico/time.h"
 #include "pins.h"
 
+// UHF Radio Power Configuration
+#define UHF_MAX_POWER 14          // Maximum TX power in dBm
+#define UHF_MIN_POWER 2           // Minimum TX power in dBm
+#define UHF_TIME_ON_THE_AIR 1100  // Time per transmission in milliseconds
+
 // Initialize UHF radio (includes ISR setup and tx_done test)
 void initUHF(spi_pins_t *spi_pins);
 
