@@ -50,7 +50,7 @@ static uint32_t interval_Sband_TX = 20*1010*1000;   // 20.2 seconds
 
 // State machine variables for non-blocking TX
 // Note: Sband_Transmitting is controlled by global UHF_TX state (!UHF_TX = Sband RX)
-static int current_tx_power_sband = 10;             // Start at 10 dBm, count down to -1
+static int current_tx_power_sband = SBAND_MAX_POWER;  // Start at max power, count down to min
 volatile absolute_time_t sband_last_rx_time = 0;    // Timestamp of last packet (for LED logic)
 static bool radio_initialized = false;              // sband radio initialized flag (true = initialized, false = not initialized)
 
@@ -245,7 +245,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX, spi_pins_t *spi_pins)
             if (radio_initialized) {
                 gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
                 sband_set_mode(SX1280_MODE_STDBY_RC);
-                current_tx_power_sband = 10;  // Start at 10 dBm
+                current_tx_power_sband = SBAND_MAX_POWER;  // Start at max power
             }
         }
         prev_UHF_TX = UHF_TX;
@@ -274,7 +274,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX, spi_pins_t *spi_pins)
             int power = 0;
             if (sscanf((char*)pkt->data + 4, "TX Power = %d", &power) == 1) {
                 // Adjust for SX1280 power range (-18 to +13 dBm)
-                int hist_index = power + 18;  // Shift so -18 maps to 0
+                int hist_index = power - SBAND_MIN_POWER;  // Map min power to index 0
                 if (hist_index >= 0 && hist_index < 32) {
                     power_histogram_sband[hist_index]++;
                 } else {
@@ -351,8 +351,8 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX, spi_pins_t *spi_pins)
         current_tx_power_sband--;
 
         // Check if transmission cycle is complete - loop continuously until UHF_TX goes true
-        if (current_tx_power_sband < -1) {
-            current_tx_power_sband = 10;  // Reset to start of cycle and continue
+        if (current_tx_power_sband < SBAND_MIN_POWER) {
+            current_tx_power_sband = SBAND_MAX_POWER;  // Reset to start of cycle and continue
             // Note: Don't switch to RX mode here - that happens when UHF_TX changes
         }
     }
