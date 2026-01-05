@@ -332,9 +332,9 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             volatile packet_sband_t *pkt = &packet_queue_sband[queue_tail_sband];
             blue();
             // Parse power value from packet
-            // Format: "\xFF\xFF\xFF\xFFTX Power = %02d"
+            // Format: "TX Power = %02d"
             int power = 0;
-            if (sscanf((char*)pkt->data + 4, "TX Power = %d", &power) == 1) {
+            if (sscanf((char*)pkt->data, "TX Power = %d", &power) == 1) {
                 // Adjust for SX1280 power range (-18 to +13 dBm)
                 int hist_index = power - SBAND_MIN_POWER;  // Map min power to index 0
                 if (hist_index >= 0 && hist_index < 32) {
