@@ -57,6 +57,9 @@ static bool radio_initialized = false;              // sband radio initialized f
 // Static buffer for TX packets
 static uint8_t tx_packet_sband[250];
 
+// RX mode selection: Set to 1 for interrupt-driven, 0 for polling
+#define SBAND_RX_USE_INTERRUPTS 0  // Change to 1 to use DIO1 interrupts
+
 /*
  * DIO1 GPIO Interrupt Service Routine for SBand
  * Triggered when a packet is received (RX_DONE interrupt)
@@ -66,7 +69,12 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
     // Check IRQ status
     uint16_t irq_flags = sband_get_irq_status();
 
+    // Debug: Print IRQ flags when ISR is called
+    static uint32_t isr_count = 0;
+    printf("SBand ISR #%lu: IRQ=0x%04X\n", ++isr_count, irq_flags);
+
     if (irq_flags & SX1280_IRQ_RX_DONE) {
+        printf("SBand: RX_DONE detected!\n");
         blue(); // no delay in telling the user the good news - a packet has arrived!
         last_packet_time_sband = get_absolute_time();  // Turn it off after seen
         // Check if queue has space
@@ -218,12 +226,26 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     // Handle UHF_TX state changes FIRST (must happen even if radio not initialized)
     // This allows re-initialization attempts when transitioning to TX mode
     static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
+    static bool first_call = true;
+
+    // Debug: Show state on first call
+    if (first_call) {
+        printf("SBand: doSband() first call - UHF_TX=%d, radio_initialized=%d\n",
+               UHF_TX, radio_initialized);
+        first_call = false;
+    }
+
     if (UHF_TX != prev_UHF_TX) {
+        printf("SBand: UHF_TX changed %d->%d, radio_init=%d\n",
+               prev_UHF_TX, UHF_TX, radio_initialized);
         if (UHF_TX) {
             // UHF_TX went from false to true: Stop Sband TX, start Sband RX
+            printf("SBand: Transition to RX mode (UHF is TX)\n");
             if (radio_initialized) {
                 sband_listen();
                 gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
+            } else {
+                printf("SBand: Cannot enter RX - radio not initialized!\n");
             }
             buffer_Sband_TX[0] = '\0';  // Clear TX buffer
         } else {
@@ -250,6 +272,46 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         }
         prev_UHF_TX = UHF_TX;
     }
+
+#if !SBAND_RX_USE_INTERRUPTS
+    // Polling mode: Check for RX_DONE every loop iteration
+    if (radio_initialized && UHF_TX) {
+        if (sband_rx_done()) {
+            printf("SBand: RX_DONE detected via polling\n");
+            blue();  // Show packet arrival
+            last_packet_time_sband = get_absolute_time();
+
+            // Check if queue has space
+            if (queue_count_sband < QUEUE_SIZE_SBAND) {
+                volatile packet_sband_t *pkt = &packet_queue_sband[queue_head_sband];
+
+                // Read packet from FIFO
+                pkt->length = sband_packet_from_fifo((uint8_t*)pkt->data);
+
+                // Get SNR and RSSI
+                pkt->snr = sband_get_snr();
+                pkt->rssi = sband_get_rssi();
+
+                // Update SNR and RSSI in packet
+                if (pkt->length > 25) {
+                    snprintf((char*)&pkt->data[25], 25, "SNR = %4d; RSSI = %4d",
+                             (int)pkt->snr, (int)pkt->rssi);
+                }
+
+                // Update queue
+                queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;
+                queue_count_sband++;
+
+                printf("SBand: Packet received, len=%d, SNR=%d, RSSI=%d\n",
+                       pkt->length, pkt->snr, pkt->rssi);
+            }
+
+            // Clear RX_DONE and continue listening
+            sband_clear_irq_status(SX1280_IRQ_RX_DONE);
+            sband_listen();
+        }
+    }
+#endif
 
     // Skip all radio operations if not initialized
     if (!radio_initialized) {return;}

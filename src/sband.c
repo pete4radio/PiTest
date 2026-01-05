@@ -403,6 +403,7 @@ void sband_set_tx_params(int8_t power, uint8_t ramp_time) {
 void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
                                 uint16_t dio2_mask, uint16_t dio3_mask) {
     uint8_t cmd_data[8];
+    // Try big-endian [MSB, LSB] - commands might use different endianness than responses
     cmd_data[0] = (irq_mask >> 8) & 0xFF;
     cmd_data[1] = irq_mask & 0xFF;
     cmd_data[2] = (dio1_mask >> 8) & 0xFF;
@@ -413,6 +414,9 @@ void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
     cmd_data[7] = dio3_mask & 0xFF;
 
     sband_write_command(SX1280_CMD_SET_DIO_IRQ_PARAMS, cmd_data, 8);
+    printf("SBand: SET_DIO_IRQ_PARAMS: [%02X %02X] [%02X %02X] [%02X %02X] [%02X %02X]\n",
+           cmd_data[0], cmd_data[1], cmd_data[2], cmd_data[3],
+           cmd_data[4], cmd_data[5], cmd_data[6], cmd_data[7]);
 }
 
 // Get IRQ status
@@ -435,6 +439,9 @@ void sband_clear_irq_status(uint16_t mask) {
 
 // Put radio in RX mode (listen)
 void sband_listen(void) {
+    // Clear any pending interrupts before entering RX
+    sband_clear_irq_status(0xFFFF);  // Clear all IRQ flags
+
     // Update the antenna relay
     gpio_put(sband_txen_pin, 0);  // Disable TX path
     gpio_put(sband_rxen_pin, 1);  // Enable RX path
@@ -449,6 +456,12 @@ void sband_listen(void) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
                __FILE__, __func__, __LINE__);
     }
+
+    // Debug: Verify RX mode and DIO1 state
+    sx1280_mode_t mode = sband_get_mode();
+    uint16_t irq = sband_get_irq_status();
+    bool dio1_state = gpio_get(SAMWISE_SBAND_D1_PIN);
+    printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state);
 }
 
 // Put radio in TX mode (transmit)
@@ -509,16 +522,25 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
     uint8_t payload_len = status[0];
     uint8_t offset = status[1];
 
+    printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, offset);
+
     if (payload_len > 0 && payload_len <= 256) {
-        // Read the buffer
+        // Read the buffer - READ_BUFFER returns 7 status bytes before data
         sband_tx_combined[0] = SX1280_CMD_READ_BUFFER;
         sband_tx_combined[1] = offset;
-        memset(sband_tx_combined + 2, 0x00, payload_len + 1);  // NOP + dummy bytes
+        memset(sband_tx_combined + 2, 0x00, payload_len + 5);  // Need 5 extra dummy bytes
 
-        sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 3);
+        sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 7);
 
-        // Copy data (skip status + NOP + offset)
-        memcpy(buf, sband_rx_combined + 3, payload_len);
+        // Copy data (skip 7 status bytes)
+        memcpy(buf, sband_rx_combined + 7, payload_len);
+
+        // Debug: Print first 32 bytes of packet
+        printf("SBand: Packet data (first 32 bytes): ");
+        for (int i = 0; i < (payload_len < 32 ? payload_len : 32); i++) {
+            printf("%02X ", buf[i]);
+        }
+        printf("\n");
 
         return payload_len;
     }
@@ -764,6 +786,11 @@ int sband_init(void) {
     // Configure interrupts
     uint16_t irq_mask = SX1280_IRQ_TX_DONE | SX1280_IRQ_RX_DONE | SX1280_IRQ_CRC_ERROR;
     sband_set_dio_irq_params(irq_mask, irq_mask, 0, 0);
+    printf("SBand: DIO IRQ params set: mask=0x%04X (TX_DONE=%d, RX_DONE=%d, CRC_ERR=%d)\n",
+           irq_mask,
+           !!(irq_mask & SX1280_IRQ_TX_DONE),
+           !!(irq_mask & SX1280_IRQ_RX_DONE),
+           !!(irq_mask & SX1280_IRQ_CRC_ERROR));
 
     printf("SBand: SX1280 DMA initialized (DMA TX=%d, RX=%d)\n",
            sband_tx_dma_chan, sband_rx_dma_chan);
