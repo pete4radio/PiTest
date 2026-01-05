@@ -214,10 +214,10 @@ static void sband_write_command(uint8_t cmd, const uint8_t *data, uint8_t len) {
 // Read command with data
 static void sband_read_command(uint8_t cmd, uint8_t *data, uint8_t len) {
     sband_tx_combined[0] = cmd;
-    memset(sband_tx_combined + 1, 0x00, len + 1);  // NOP + dummy bytes
-    sband_spi_transfer(sband_tx_combined, sband_rx_combined, len + 2);
+    memset(sband_tx_combined + 1, 0x00, len);  // Dummy bytes for SPI read
+    sband_spi_transfer(sband_tx_combined, sband_rx_combined, len + 1);
     if (data != NULL && len > 0) {
-        memcpy(data, sband_rx_combined + 2, len);  // Skip status + NOP
+        memcpy(data, sband_rx_combined + 1, len);  // Skip status byte
     }
 }
 
@@ -419,14 +419,16 @@ void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
 uint16_t sband_get_irq_status(void) {
     uint8_t status[2];
     sband_read_command(SX1280_CMD_GET_IRQ_STATUS, status, 2);
-    return ((uint16_t)status[0] << 8) | status[1];
+    // SX1280 returns IRQ status in little-endian: [LSB, MSB]
+    return ((uint16_t)status[1] << 8) | status[0];
 }
 
 // Clear IRQ status
 void sband_clear_irq_status(uint16_t mask) {
     uint8_t cmd_data[2];
-    cmd_data[0] = (mask >> 8) & 0xFF;
-    cmd_data[1] = mask & 0xFF;
+    // SX1280 expects little-endian: [LSB, MSB]
+    cmd_data[0] = mask & 0xFF;
+    cmd_data[1] = (mask >> 8) & 0xFF;
 
     sband_write_command(SX1280_CMD_CLEAR_IRQ_STATUS, cmd_data, 2);
 }
@@ -470,6 +472,11 @@ void sband_transmit(void) {
 // Check if TX is done
 uint8_t sband_tx_done(void) {
     uint16_t irq_status = sband_get_irq_status();
+    static uint16_t last_irq = 0xFFFF;  // Track changes to reduce spam
+    if (irq_status != last_irq) {
+        printf("SBand: IRQ status = 0x%04X\n", irq_status);
+        last_irq = irq_status;
+    }
     if (irq_status & SX1280_IRQ_TX_DONE) {
         sband_clear_irq_status(SX1280_IRQ_TX_DONE);
         return 1;
@@ -709,14 +716,14 @@ int sband_init(void) {
         return -1;
     }
 
-    // Send GET_STATUS to verify chip is responsive (simple 1-byte command)
-    uint8_t cmd_buf[1] = {SX1280_CMD_GET_STATUS};
-    uint8_t status_buf[1];
-    sband_spi_transfer(cmd_buf, status_buf, 1);
-    printf("SBand: Status after reset: 0x%02X\n", status_buf[0]);
+    // Send GET_STATUS to verify chip is responsive (requires 2-byte transfer)
+    uint8_t cmd_buf[2] = {SX1280_CMD_GET_STATUS, 0x00};
+    uint8_t status_buf[2];
+    sband_spi_transfer(cmd_buf, status_buf, 2);
+    printf("SBand: Status after reset: 0x%02X\n", status_buf[1]);
 // Add detailed status printing
-    sband_print_status_byte(status_buf[0], "After reset");
-    if (status_buf[0] == 0x00 || status_buf[0] == 0xFF) {
+    sband_print_status_byte(status_buf[1], "After reset");
+    if (status_buf[1] == 0x00 || status_buf[1] == 0xFF) {
         printf("SBand: ERROR: No status byte from SX1280 after reset\n");
         // Release DMA channels before returning error
         dma_channel_unclaim(sband_tx_dma_chan);
