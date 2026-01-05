@@ -19,6 +19,19 @@ Lively LED color indication of received packets and transmissions.
 
 */
 
+// Serialize/deserialize uint32_t (little-endian)
+static inline void write_uint32_le(uint8_t *buf, uint32_t value) {
+    buf[0] = (uint8_t)(value & 0xFF);
+    buf[1] = (uint8_t)((value >> 8) & 0xFF);
+    buf[2] = (uint8_t)((value >> 16) & 0xFF);
+    buf[3] = (uint8_t)((value >> 24) & 0xFF);
+}
+
+static inline uint32_t read_uint32_le(const volatile uint8_t *buf) {
+    return ((uint32_t)buf[0]) | (((uint32_t)buf[1]) << 8) |
+           (((uint32_t)buf[2]) << 16) | (((uint32_t)buf[3]) << 24);
+}
+
 // Packet queue structure definitions (for ISR access)
 #define QUEUE_SIZE_SBAND 15
 #define PACKET_SIZE_SBAND 256
@@ -41,6 +54,13 @@ volatile uint8_t nCRC_sband = 0;
 
 // Power histogram for received power levels
 static int power_histogram_sband[32] = {0};  // histogram for -18 to +13 dBm range
+
+// Packet set counters
+static uint32_t sband_packet_set_count = 0;        // TX counter
+static uint32_t sband_last_rx_packet_set_count = 0; // RX counter
+static uint32_t sband_last_printed_packet_set_count = 0; // Last count when stats were printed
+static uint32_t sband_rx_packet_set_offset = 0;    // Offset to handle late boot synchronization
+static bool sband_offset_initialized = false;       // Track if offset has been set
 
 // Timing variables
 static absolute_time_t previous_time_Sband_RX;
@@ -332,18 +352,44 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             volatile packet_sband_t *pkt = &packet_queue_sband[queue_tail_sband];
             blue();
             // Parse power value from packet
-            // Format: "TX Power = %02d"
+            // Format: "TX Power = %02d" (preamble stripped by SX1280)
             int power = 0;
             if (sscanf((char*)pkt->data, "TX Power = %d", &power) == 1) {
-                // Adjust for SX1280 power range (-18 to +13 dBm)
-                int hist_index = power - SBAND_MIN_POWER;  // Map min power to index 0
+                // Extract packet set counter from bytes 16-19 (20-4 for stripped preamble)
+                if (pkt->length >= 20) {
+                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 16);
+                    sband_last_rx_packet_set_count = rx_packet_set_count;
+
+                    // Handle synchronization
+                    if (rx_packet_set_count == 0) {
+                        // Transmitter rebooted - reset histogram and offset
+                        for (int i = 0; i < 32; i++) {
+                            power_histogram_sband[i] = 0;
+                        }
+                        sband_rx_packet_set_offset = 0;
+                        sband_offset_initialized = false;
+                    } else if (!sband_offset_initialized) {
+                        // First packet received with count > 0 - save offset
+                        sband_rx_packet_set_offset = rx_packet_set_count;
+                        sband_offset_initialized = true;
+                    }
+                }
+
+                // SBand receives from another SBand radio (same band)
+                int hist_index = power - SBAND_MIN_POWER;  // Map SBand min power to index 0
                 if (hist_index >= 0 && hist_index < 32) {
                     power_histogram_sband[hist_index]++;
                 } else {
-                    printf("SBand Warning: Received out-of-range power value: %d\n", power);
+                    printf("SBand Warning: Received out-of-range power value: %d (expected SBand range %d-%d)\n",
+                           power, SBAND_MIN_POWER, SBAND_MAX_POWER);
                 }
             } else {
                 printf("SBand Warning: Failed to parse power from packet\n");
+                printf("Packet data (len=%d): ", pkt->length);
+                for (int i = 0; i < pkt->length; i++) {
+                    printf("%02X ", pkt->data[i]);
+                }
+                printf("\n");
             }
 
             // Update queue
@@ -362,6 +408,47 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             }
             remaining_space -= written;
         }
+
+        // Calculate and display packet loss statistics (only when count changes)
+        if (sband_last_rx_packet_set_count > 0 &&
+            sband_last_rx_packet_set_count != sband_last_printed_packet_set_count) {
+            printf("\n=== SBand Packet Loss Statistics (Set #%lu) ===\n", sband_last_rx_packet_set_count);
+            printf("Power(dBm) | Expected | Received | Lost | Loss%% | log10(loss)\n");
+            printf("-----------|----------|----------|------|--------|------------\n");
+
+            for (int i = 0; i < 32; i++) {
+                int power_dbm = SBAND_MIN_POWER + i;  // SBand receives from another SBand
+
+                // Only show power levels in SBand's TX sweep range
+                if (power_dbm < SBAND_MIN_POWER || power_dbm > SBAND_MAX_POWER) continue;
+
+                // Calculate expected based on offset-corrected count
+                uint32_t expected = sband_last_rx_packet_set_count - sband_rx_packet_set_offset;
+                uint32_t received = power_histogram_sband[i];
+                uint32_t lost = (received > expected) ? 0 : (expected - received);
+                float loss_fraction = (float)lost / (float)expected;
+                float loss_percent = loss_fraction * 100.0f;
+
+                // Calculate log10(loss_fraction) with floor at -2.0
+                float log10_loss;
+                if (loss_fraction < 0.01f) {
+                    log10_loss = -2.0f;  // Floor for excellent reception
+                } else if (loss_fraction < 0.1f) {
+                    log10_loss = -1.0f;  // 1-10% loss
+                } else if (loss_fraction < 1.0f) {
+                    log10_loss = -0.3f;  // 10-100% loss (approximation)
+                } else {
+                    log10_loss = 0.0f;   // 100% loss
+                }
+
+                printf("%10d | %8lu | %8d | %4lu | %5.1f%% | %10.2f\n",
+                       power_dbm, expected, received, lost, loss_percent, log10_loss);
+            }
+            printf("====================================================\n\n");
+
+            // Update last printed count
+            sband_last_printed_packet_set_count = sband_last_rx_packet_set_count;
+        }
     }
 
     // SBAND_TX: Transmit when UHF is in RX mode (!UHF_TX)
@@ -377,8 +464,11 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         tx_packet_sband[3] = '\xFF';
         // Format power with leading zero or minus sign
         sprintf((char*)tx_packet_sband + 4, "TX Power = %02d", current_tx_power_sband);
-        // Copy current SBand RX display buffer into packet after the TX Power string
-        size_t s_offset = 4 + strlen((char*)tx_packet_sband + 4);
+        // Add packet set counter at fixed position (bytes 20-23, after power string)
+        write_uint32_le(tx_packet_sband + 20, sband_packet_set_count);
+
+        // Copy current SBand RX display buffer into packet after the counter
+        size_t s_offset = 24;  // After preamble (4) + power string (14) + counter (4) + padding (2)
         size_t s_copy_len = strlen(buffer_Sband_RX);
         if (s_copy_len > (size_t)(250 - s_offset)) s_copy_len = 250 - s_offset;
         if (s_copy_len > 0) {
@@ -414,6 +504,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 
         // Check if transmission cycle is complete - loop continuously until UHF_TX goes true
         if (current_tx_power_sband < SBAND_MIN_POWER) {
+            sband_packet_set_count++;  // Increment on completing full sweep
             current_tx_power_sband = SBAND_MAX_POWER;  // Reset to start of cycle and continue
             // Note: Don't switch to RX mode here - that happens when UHF_TX changes
         }

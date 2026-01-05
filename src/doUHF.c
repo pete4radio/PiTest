@@ -9,6 +9,19 @@
 // RFM96 register definitions (from rfm96.c)
 #define _RH_RF95_REG_12_IRQ_FLAGS 0x12
 
+// Serialize/deserialize uint32_t (little-endian)
+static inline void write_uint32_le(uint8_t *buf, uint32_t value) {
+    buf[0] = (uint8_t)(value & 0xFF);
+    buf[1] = (uint8_t)((value >> 8) & 0xFF);
+    buf[2] = (uint8_t)((value >> 16) & 0xFF);
+    buf[3] = (uint8_t)((value >> 24) & 0xFF);
+}
+
+static inline uint32_t read_uint32_le(const volatile uint8_t *buf) {
+    return ((uint32_t)buf[0]) | (((uint32_t)buf[1]) << 8) |
+           (((uint32_t)buf[2]) << 16) | (((uint32_t)buf[3]) << 24);
+}
+
 // Packet queue structure definitions (for ISR access)
 #define QUEUE_SIZE 15
 #define PACKET_SIZE 256
@@ -32,6 +45,13 @@ volatile uint8_t nCRC = 0;
 
 // Power histogram for received power levels
 static int power_histogram[20] = {0};  // histogram of received power levels
+
+// Packet set counters
+static uint32_t uhf_packet_set_count = 0;        // TX: incremented when completing full sweep
+static uint32_t uhf_last_rx_packet_set_count = 0; // RX: extracted from received packets
+static uint32_t uhf_last_printed_packet_set_count = 0; // Last count when stats were printed
+static uint32_t uhf_rx_packet_set_offset = 0;    // Offset to handle late boot synchronization
+static bool uhf_offset_initialized = false;       // Track if offset has been set
 
 // Timing variables
 static absolute_time_t previous_time_RADIO_RX;
@@ -191,8 +211,28 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
             // Parse power value from packet.  Format: "\xFF\xFF\xFF\xFFTX Power = %02d"
             int power = 0;
             if (sscanf((char*)pkt->data + 4, "TX Power = %d", &power) == 1) {
-                // Adjust for negative power values (range: -1 to 17)
-                int hist_index = power - UHF_MIN_POWER;  // Map min power to index 0
+                // Extract packet set counter from bytes 20-23 (after power string)
+                if (pkt->length >= 24) {
+                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 20);
+                    uhf_last_rx_packet_set_count = rx_packet_set_count;
+
+                    // Handle synchronization
+                    if (rx_packet_set_count == 0) {
+                        // Transmitter rebooted - reset histogram and offset
+                        for (int i = 0; i < 20; i++) {
+                            power_histogram[i] = 0;
+                        }
+                        uhf_rx_packet_set_offset = 0;
+                        uhf_offset_initialized = false;
+                    } else if (!uhf_offset_initialized) {
+                        // First packet received with count > 0 - save offset
+                        uhf_rx_packet_set_offset = rx_packet_set_count;
+                        uhf_offset_initialized = true;
+                    }
+                }
+
+                // UHF receives from another UHF radio (same band)
+                int hist_index = power - UHF_MIN_POWER;  // Map UHF min power to index 0
                 if (hist_index >= 0 && hist_index < 20) {
                     power_histogram[hist_index]++;
 // We know when the we will receive the last packet, if we hear it
@@ -200,7 +240,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
                     previous_time_RADIO_TX = get_absolute_time() - interval_RADIO_TX +\
                      (UHF_TIME_ON_THE_AIR * 1000) * hist_index + 100000; // 0.1s after last RX
                 } else {
-                    printf("UHF Warning: Ignoring received out-of-range power value: %d\n", power);
+                    printf("UHF Warning: Received out-of-range power value: %d (expected UHF range %d-%d)\n",
+                           power, UHF_MIN_POWER, UHF_MAX_POWER);
                 }
             } else {
                 printf("UHF Warning: Failed to parse power from packet\n");
@@ -222,6 +263,47 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
             }
             remaining_space -= written;
         }
+
+        // Calculate and display packet loss statistics (only when count changes)
+        if (uhf_last_rx_packet_set_count > 0 &&
+            uhf_last_rx_packet_set_count != uhf_last_printed_packet_set_count) {
+            printf("\n=== UHF Packet Loss Statistics (Set #%lu) ===\n", uhf_last_rx_packet_set_count);
+            printf("Power(dBm) | Expected | Received | Lost | Loss%% | log10(loss)\n");
+            printf("-----------|----------|----------|------|--------|------------\n");
+
+            for (int i = 0; i < 20; i++) {
+                int power_dbm = UHF_MIN_POWER + i;  // UHF receives from another UHF
+
+                // Only show power levels in UHF's TX sweep range
+                if (power_dbm < UHF_MIN_POWER || power_dbm > UHF_MAX_POWER) continue;
+
+                // Calculate expected based on offset-corrected count
+                uint32_t expected = uhf_last_rx_packet_set_count - uhf_rx_packet_set_offset;
+                uint32_t received = power_histogram[i];
+                uint32_t lost = (received > expected) ? 0 : (expected - received);
+                float loss_fraction = (float)lost / (float)expected;
+                float loss_percent = loss_fraction * 100.0f;
+
+                // Calculate log10(loss_fraction) with floor at -2.0 (1% loss = 0.01)
+                float log10_loss;
+                if (loss_fraction < 0.01f) {
+                    log10_loss = -2.0f;  // Floor for excellent reception
+                } else if (loss_fraction < 0.1f) {
+                    log10_loss = -1.0f;  // 1-10% loss
+                } else if (loss_fraction < 1.0f) {
+                    log10_loss = -0.3f;  // 10-100% loss (approximation)
+                } else {
+                    log10_loss = 0.0f;   // 100% loss
+                }
+
+                printf("%10d | %8lu | %8d | %4lu | %5.1f%% | %10.2f\n",
+                       power_dbm, expected, received, lost, loss_percent, log10_loss);
+            }
+            printf("====================================================\n\n");
+
+            // Update last printed count
+            uhf_last_printed_packet_set_count = uhf_last_rx_packet_set_count;
+        }
     }
 
     // RADIO_TX: State machine for non-blocking transmission
@@ -239,8 +321,11 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         tx_packet[3] = '\xFF';
         // Format power with leading zero or minus sign
         sprintf((char*)tx_packet + 4, "TX Power = %02d", current_tx_power_uhf);
-        // Copy current RX display buffer into packet after the TX Power string
-        size_t offset = 4 + strlen((char*)tx_packet + 4);
+        // Add packet set counter at fixed position (bytes 20-23, after power string)
+        write_uint32_le(tx_packet + 20, uhf_packet_set_count);
+
+        // Copy current RX display buffer into packet after the counter
+        size_t offset = 24;  // After preamble (4) + power string (14) + counter (4) + padding (2)
         size_t copy_len = strlen(buffer_RADIO_RX);
         if (copy_len > (size_t)(250 - offset)) copy_len = 250 - offset;
         if (copy_len > 0) {
@@ -263,6 +348,9 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
 
         // Check if transmission cycle is complete
         if (current_tx_power_uhf < UHF_MIN_POWER) {
+            // Increment packet set counter (completed full sweep)
+            uhf_packet_set_count++;
+
             // Transmission cycle complete - switch to SBand TX, UHF RX
             UHF_TX = false;
             current_tx_power_uhf = UHF_MAX_POWER;  // Reset for next cycle
