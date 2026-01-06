@@ -380,7 +380,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
     }
 
     // If it's been a while since last RX packet, signal to user
-     if (!UHF_TX && uhf_rx_active && absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) > 500000) {
+     if (!UHF_TX && absolute_time_diff_us(uhf_last_rx_time, get_absolute_time()) > 500000) {
         white();
     }
 }

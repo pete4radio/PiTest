@@ -142,6 +142,7 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
  * Returns: true if initialization successful, false if all retries exhausted
  */
 static bool attempt_sband_init(void) {
+    yellow();
     for (int attempt = 1; attempt <= TRY_INIT; attempt++) {
         if (attempt > 1) {
             printf("SBand: Retry attempt %d/%d...\n", attempt, TRY_INIT);
