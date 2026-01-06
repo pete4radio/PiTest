@@ -25,6 +25,6 @@ extern volatile bool UHF_TX;
 extern volatile absolute_time_t uhf_last_rx_time;
 
 // LED color contribution from UHF (for additive color mixing)
-extern volatile uint8_t uhf_led_r;
-extern volatile uint8_t uhf_led_g;
-extern volatile uint8_t uhf_led_b;
+//extern volatile uint8_t uhf_led_r;
+//extern volatile uint8_t uhf_led_g;
+//extern volatile uint8_t uhf_led_b;

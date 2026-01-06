@@ -21,6 +21,6 @@ void sband_dio1_isr(uint gpio, uint32_t events);
 extern volatile absolute_time_t sband_last_rx_time;
 
 // LED color contribution from SBand (for additive color mixing)
-extern volatile uint8_t sband_led_r;
-extern volatile uint8_t sband_led_g;
-extern volatile uint8_t sband_led_b;
+//extern volatile uint8_t sband_led_r;
+//extern volatile uint8_t sband_led_g;
+//extern volatile uint8_t sband_led_b;

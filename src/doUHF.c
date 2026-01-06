@@ -71,9 +71,9 @@ volatile absolute_time_t uhf_last_rx_time = 0;  // Timestamp of last packet (for
 static uint8_t tx_packet[250];
 
 // LED color contribution from UHF (for additive color mixing)
-volatile uint8_t uhf_led_r = 0;
-volatile uint8_t uhf_led_g = 0;
-volatile uint8_t uhf_led_b = 0;
+//volatile uint8_t uhf_led_r = 0;
+//volatile uint8_t uhf_led_g = 0;
+//volatile uint8_t uhf_led_b = 0;
 
 /*
  * DIO0 GPIO Interrupt Service Routine
