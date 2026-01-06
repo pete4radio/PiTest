@@ -96,7 +96,7 @@ int pico_led_init(void) {
 #endif
 }
 
-// brurn wire GPIO initialization
+// burn wire GPIO initialization
 int pico_burn_wire_init(void) {
     gpio_init(SAMWISE_BURNWIRE_PIN);
     gpio_set_dir(SAMWISE_BURNWIRE_PIN, GPIO_OUT);
@@ -204,7 +204,7 @@ int main() {
     hard_assert(rc == PICO_OK);
 
     int ws2812rc = ws2812_init();
-    white();  //  Indicate we are idle
+    yellow();  //  Indicate we are idle
 
     //Initialize serial port(s) chosen in CMakeLists.txt   PHM This is no longer working
     stdio_init_all();

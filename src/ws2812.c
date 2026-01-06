@@ -12,8 +12,8 @@ PIO global_pio;
 uint global_sm;
 
 #define IS_RGBW false
-#define NUM_PIXELS 2
-#define TIME_ON_MS 150  // How long each color stays visible
+#define NUM_PIXELS 1
+#define TIME_ON_MS 75  // How long each color stays visible
 
 // Color queue structure
 #define COLOR_QUEUE_SIZE 8
