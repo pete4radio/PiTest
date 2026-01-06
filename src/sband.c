@@ -404,6 +404,7 @@ void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
                                 uint16_t dio2_mask, uint16_t dio3_mask) {
     uint8_t cmd_data[8];
     // Try big-endian [MSB, LSB] - commands might use different endianness than responses
+    // Datasheet is clear that this command and SPI uses MSB first
     cmd_data[0] = (irq_mask >> 8) & 0xFF;
     cmd_data[1] = irq_mask & 0xFF;
     cmd_data[2] = (dio1_mask >> 8) & 0xFF;
@@ -423,14 +424,19 @@ void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
 uint16_t sband_get_irq_status(void) {
     uint8_t status[2];
     sband_read_command(SX1280_CMD_GET_IRQ_STATUS, status, 2);
-    // SX1280 returns IRQ status in little-endian: [LSB, MSB]
+    // SX1280 datasheet says it returns IRQ status MSB first (big-endian): [MSB, LSB]
+    //return ((uint16_t)status[0] << 8) | status[1];
+    // SX1280 works with little-endian: [LSB, MSB];
     return ((uint16_t)status[1] << 8) | status[0];
 }
 
 // Clear IRQ status
 void sband_clear_irq_status(uint16_t mask) {
     uint8_t cmd_data[2];
-    // SX1280 expects little-endian: [LSB, MSB]
+    // SX1280 datasheet expects MSB first for command payloads: [MSB, LSB]
+    cmd_data[0] = (mask >> 8) & 0xFF;
+    cmd_data[1] = mask & 0xFF;
+    // SX1280 works with little-endian: [LSB, MSB]
     cmd_data[0] = mask & 0xFF;
     cmd_data[1] = (mask >> 8) & 0xFF;
 
@@ -442,7 +448,7 @@ void sband_listen(void) {
     // Clear any pending interrupts before entering RX
     sband_clear_irq_status(0xFFFF);  // Clear all IRQ flags
 
-    // Update the antenna relay
+    // Update the antenna relay, PA and LNA (Not sure that is actually what this)
     gpio_put(sband_txen_pin, 0);  // Disable TX path
     gpio_put(sband_rxen_pin, 1);  // Enable RX path
     uint8_t cmd_data[3];
@@ -452,6 +458,7 @@ void sband_listen(void) {
 
     sband_write_command(SX1280_CMD_SET_RX, cmd_data, 3);
 
+// sband_listen is called from an ISR, so avoid printf here
     if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
                __FILE__, __func__, __LINE__);
@@ -461,7 +468,8 @@ void sband_listen(void) {
     sx1280_mode_t mode = sband_get_mode();
     uint16_t irq = sband_get_irq_status();
     bool dio1_state = gpio_get(SAMWISE_SBAND_D1_PIN);
-    printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state);
+// sband_listen is called from an ISR, so avoid printf here
+//    printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state);
 }
 
 // Put radio in TX mode (transmit)

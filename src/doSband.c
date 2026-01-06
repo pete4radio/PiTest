@@ -16,10 +16,11 @@ RX is DIO1 ISR driven, using a packet queue to fill a histogram of transmitted p
 Non-blocking TX is implemented sends one packet at new power level each invocation.
 LoRa Parameters are hard coded.
 Lively LED color indication of received packets and transmissions.
+Both this radio and the one at the other end of the link are running identical code.
 
 */
 
-// Serialize/deserialize uint32_t (little-endian)
+// Serialize/deserialize uint32_t (little-endian -- pico-sdk, intel, etc's native)
 static inline void write_uint32_le(uint8_t *buf, uint32_t value) {
     buf[0] = (uint8_t)(value & 0xFF);
     buf[1] = (uint8_t)((value >> 8) & 0xFF);
@@ -91,10 +92,10 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
 
     // Debug: Print IRQ flags when ISR is called
     static uint32_t isr_count = 0;
-    printf("SBand ISR #%lu: IRQ=0x%04X\n", ++isr_count, irq_flags);
+//    printf("SBand ISR #%lu: IRQ=0x%04X\n", ++isr_count, irq_flags);
 
     if (irq_flags & SX1280_IRQ_RX_DONE) {
-        printf("SBand: RX_DONE detected!\n");
+//        printf("SBand: RX_DONE detected!\n");       //PHM does printf even work from an ISR?
         blue(); // no delay in telling the user the good news - a packet has arrived!
         last_packet_time_sband = get_absolute_time();  // Turn it off after seen
         // Check if queue has space
@@ -157,7 +158,7 @@ static bool attempt_sband_init(void) {
         printf("SBand: Init attempt %d/%d: sband_init() succeeded, running validation tests...\n",
                attempt, TRY_INIT);
 
-        // Disable ISR during validation tests
+        // Disable ISR during TX validation tests
         gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
 
         // TX Validation Test 1: Short packet
@@ -355,14 +356,17 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             // Format: "TX Power = %02d" (preamble stripped by SX1280)
             int power = 0;
             if (sscanf((char*)pkt->data, "TX Power = %d", &power) == 1) {
-                // Extract packet set counter from bytes 16-19 (20-4 for stripped preamble)
-                if (pkt->length >= 20) {
-                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 16);
+                // Extract packet set counter from bytes 16-19 (20-4 for UNstripped preamble)
+                // The preamble is stripped off by the SX1280 hardware, but the address bytes
+                // remain, so the counter starts at byte 20 in the received data
+                if (pkt->length >= 24) {
+                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 20);
                     sband_last_rx_packet_set_count = rx_packet_set_count;
 
-                    // Handle synchronization
+                    // Histogram begins recording after both RX and TX have started
+                    //  to avoid mis-alignment due to late starts
                     if (rx_packet_set_count == 0) {
-                        // Transmitter rebooted - reset histogram and offset
+                        // The distant Transmitter rebooted - reset our histogram and offset
                         for (int i = 0; i < 32; i++) {
                             power_histogram_sband[i] = 0;
                         }
@@ -375,7 +379,8 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
                     }
                 }
 
-                // SBand receives from another SBand radio (same band)
+                // SBand receives from another identical SBand radio (same band)
+                // Flash the same code to both radios
                 int hist_index = power - SBAND_MIN_POWER;  // Map SBand min power to index 0
                 if (hist_index >= 0 && hist_index < 32) {
                     power_histogram_sband[hist_index]++;
