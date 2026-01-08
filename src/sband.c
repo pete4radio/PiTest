@@ -722,9 +722,18 @@ int sband_init(void) {
     spi_init(sband_spi, SX1280_SPI_BAUDRATE);
     spi_set_format(sband_spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
-    // Claim DMA channels for SPI transfers
-    sband_tx_dma_chan = dma_claim_unused_channel(true);
-    sband_rx_dma_chan = dma_claim_unused_channel(true);
+    // Claim DMA channels for SPI transfers, if not already done
+    if (sband_tx_dma_chan == -1 && sband_rx_dma_chan == -1) {
+        sband_tx_dma_chan = dma_claim_unused_channel(true);
+        sband_rx_dma_chan = dma_claim_unused_channel(true);
+        if (sband_tx_dma_chan == -1 || sband_rx_dma_chan == -1) {
+            printf("SBand: ERROR: Unable to claim DMA channels for SX1280\n");
+            return -1;
+        } else {
+            printf("SBand: Claimed DMA channels for SX1280: TX=%d, RX=%d\n",
+                   sband_tx_dma_chan, sband_rx_dma_chan);
+        }
+    }
 
     // Configure RX DMA (same for all transactions)
     dma_channel_config rx_cfg = dma_channel_get_default_config(sband_rx_dma_chan);
@@ -738,18 +747,12 @@ int sband_init(void) {
     // Reset radio
     if (!sband_reset()) {
         printf("SBand: ERROR: Reset failed with BUSY timeout - aborting initialization\n");
-        // Release DMA channels before returning error
-        dma_channel_unclaim(sband_tx_dma_chan);
-        dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
 
     if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
                __FILE__, __func__, __LINE__);
-        // Release DMA channels before returning error
-        dma_channel_unclaim(sband_tx_dma_chan);
-        dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
 
@@ -762,9 +765,6 @@ int sband_init(void) {
     sband_print_status_byte(status_buf[1], "After reset");
     if (status_buf[1] == 0x00 || status_buf[1] == 0xFF) {
         printf("SBand: ERROR: No status byte from SX1280 after reset\n");
-        // Release DMA channels before returning error
-        dma_channel_unclaim(sband_tx_dma_chan);
-        dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
 
@@ -774,9 +774,6 @@ int sband_init(void) {
     if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
                __FILE__, __func__, __LINE__);
-        // Release DMA channels before returning error
-        dma_channel_unclaim(sband_tx_dma_chan);
-        dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
 
@@ -786,9 +783,6 @@ int sband_init(void) {
     if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] ERROR: BUSY timeout - aborting initialization\n",
             __FILE__, __func__, __LINE__);
-        // Release DMA channels before returning error
-        dma_channel_unclaim(sband_tx_dma_chan);
-        dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
 
@@ -814,10 +808,6 @@ int sband_init(void) {
     char version[16];
     if (!sband_verify_chip(version)) {
         printf("SBand: ERROR: SX1280 not found (no response from chip)\n");
-
-        // release the two DMA channels before returning error
-        dma_channel_unclaim(sband_tx_dma_chan);
-        dma_channel_unclaim(sband_rx_dma_chan);
         return -1;
     }
 
