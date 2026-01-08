@@ -456,6 +456,9 @@ void sband_listen(void) {
     cmd_data[1] = 0xFF;  // periodBaseCount MSB (0xFFFF = continuous RX)
     cmd_data[2] = 0xFF;  // periodBaseCount LSB
 
+// Map DIO1 to RX_DONE interrupt
+sband_set_dio_irq_params(SX1280_IRQ_RX_DONE, SX1280_IRQ_RX_DONE, 0, 0);
+
     sband_write_command(SX1280_CMD_SET_RX, cmd_data, 3);
 
 // sband_listen is called from an ISR, so avoid printf here
