@@ -357,10 +357,8 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             // Format: "TX Power = %02d" (preamble stripped by SX1280)
             int power = 0;
             if (sscanf((char*)pkt->data, "TX Power = %d", &power) == 1) {
-                // Extract packet set counter from bytes 16-19 (20-4 for UNstripped preamble)
-                // The preamble is stripped off by the SX1280 hardware, but the address bytes
-                // remain, so the counter starts at byte 20 in the received data
-                if (pkt->length >= 24) {
+                // Extract packet set counter after power string
+                if (pkt->length >= 28) {
                     uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 20);
                     sband_last_rx_packet_set_count = rx_packet_set_count;
 
@@ -416,11 +414,11 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         }
 
         // Calculate and display packet loss statistics (only when count changes)
-        if (sband_last_rx_packet_set_count > 0 &&
-            sband_last_rx_packet_set_count != sband_last_printed_packet_set_count) {
+        if ((sband_last_rx_packet_set_count > 0 &&
+            sband_last_rx_packet_set_count != sband_last_printed_packet_set_count)) {
             printf("\n=== SBand Packet Loss Statistics (Set #%lu) ===\n", sband_last_rx_packet_set_count);
-            printf("Power(dBm) | Expected | Received | Lost | Loss%% | log10(loss)\n");
-            printf("-----------|----------|----------|------|--------|------------\n");
+            printf("Power(dBm) | Expected | Received | Lost | Loss%%\n");
+            printf("-----------|----------|----------|------|--------\n");
 
             for (int i = 0; i < 32; i++) {
                 int power_dbm = SBAND_MIN_POWER + i;  // SBand receives from another SBand
@@ -435,20 +433,8 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
                 float loss_fraction = (float)lost / (float)expected;
                 float loss_percent = loss_fraction * 100.0f;
 
-                // Calculate log10(loss_fraction) with floor at -2.0
-                float log10_loss;
-                if (loss_fraction < 0.01f) {
-                    log10_loss = -2.0f;  // Floor for excellent reception
-                } else if (loss_fraction < 0.1f) {
-                    log10_loss = -1.0f;  // 1-10% loss
-                } else if (loss_fraction < 1.0f) {
-                    log10_loss = -0.3f;  // 10-100% loss (approximation)
-                } else {
-                    log10_loss = 0.0f;   // 100% loss
-                }
-
-                printf("%10d | %8lu | %8d | %4lu | %5.1f%% | %10.2f\n",
-                       power_dbm, expected, received, lost, loss_percent, log10_loss);
+                printf("%10d | %8lu | %8d | %4lu | %5.1f%%\n",
+                       power_dbm, expected, received, lost, loss_percent);
             }
             printf("====================================================\n\n");
 
@@ -474,7 +460,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         write_uint32_le(tx_packet_sband + 20, sband_packet_set_count);
 
         // Copy current SBand RX display buffer into packet after the counter
-        size_t s_offset = 24;  // After preamble (4) + power string (14) + counter (4) + padding (2)
+        size_t s_offset = 20;  // After preamble (4) + power string (14) + counter (4) + padding (2)
         size_t s_copy_len = strlen(buffer_Sband_RX);
         if (s_copy_len > (size_t)(250 - s_offset)) s_copy_len = 250 - s_offset;
         if (s_copy_len > 0) {

@@ -268,8 +268,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         if (uhf_last_rx_packet_set_count > 0 &&
             uhf_last_rx_packet_set_count != uhf_last_printed_packet_set_count) {
             printf("\n=== UHF Packet Loss Statistics (Set #%lu) ===\n", uhf_last_rx_packet_set_count);
-            printf("Power(dBm) | Expected | Received | Lost | Loss%% | log10(loss)\n");
-            printf("-----------|----------|----------|------|--------|------------\n");
+            printf("Power(dBm) | Expected | Received | Lost | Loss%%\n");
+            printf("-----------|----------|----------|------|--------\n");
 
             for (int i = 0; i < 20; i++) {
                 int power_dbm = UHF_MIN_POWER + i;  // UHF receives from another UHF
@@ -284,20 +284,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
                 float loss_fraction = (float)lost / (float)expected;
                 float loss_percent = loss_fraction * 100.0f;
 
-                // Calculate log10(loss_fraction) with floor at -2.0 (1% loss = 0.01)
-                float log10_loss;
-                if (loss_fraction < 0.01f) {
-                    log10_loss = -2.0f;  // Floor for excellent reception
-                } else if (loss_fraction < 0.1f) {
-                    log10_loss = -1.0f;  // 1-10% loss
-                } else if (loss_fraction < 1.0f) {
-                    log10_loss = -0.3f;  // 10-100% loss (approximation)
-                } else {
-                    log10_loss = 0.0f;   // 100% loss
-                }
-
-                printf("%10d | %8lu | %8d | %4lu | %5.1f%% | %10.2f\n",
-                       power_dbm, expected, received, lost, loss_percent, log10_loss);
+                printf("%10d | %8lu | %8d | %4lu | %5.1f%%\n",
+                       power_dbm, expected, received, lost, loss_percent);
             }
             printf("====================================================\n\n");
 
