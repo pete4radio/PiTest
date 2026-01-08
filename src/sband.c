@@ -459,6 +459,10 @@ void sband_listen(void) {
 // Map DIO1 to RX_DONE interrupt
 sband_set_dio_irq_params(SX1280_IRQ_RX_DONE, SX1280_IRQ_RX_DONE, 0, 0);
 
+// Enable interrupts for rising transitions on DIO1 pin.  This will hang at the moment, even 
+// tho DIO1 never asserts.
+//    gpio_set_irq_enabled_with_callback(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true, NULL);
+
     sband_write_command(SX1280_CMD_SET_RX, cmd_data, 3);
 
 // sband_listen is called from an ISR, so avoid printf here
