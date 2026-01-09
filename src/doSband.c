@@ -3,6 +3,7 @@
 #include "sband.h"
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 #include "hardware/gpio.h"
 #include "ws2812.h"  // For LED control (red, white)
 #include "main_gps_uart_shared_buffer.h"  // For BUFLEN definition
@@ -36,15 +37,26 @@ static inline uint32_t read_uint32_le(const volatile uint8_t *buf) {
 // Packet queue structure definitions (for ISR access)
 #define QUEUE_SIZE_SBAND 15
 #define PACKET_SIZE_SBAND 256
-typedef struct {
-    uint8_t data[PACKET_SIZE_SBAND];
-    uint8_t length;
-    int8_t snr;
-    int16_t rssi;
-} packet_sband_t;
+// Payload format placed after 4-byte preamble on the wire.
+// SX1280 strips the 4-byte preamble on receive, so received payload starts at offset 0.
+typedef struct __attribute__((packed)) {
+    uint8_t dest;              // network: destination
+    uint8_t src;               // network: source
+    uint8_t ack;               // network: ack flag
+    uint8_t serial;            // network: serial
+    uint8_t queue_len;         // stored by ISR/polling: length of received packet
+    int8_t  power;             // transmit power
+    uint32_t packet_set_count; // set counter (little-endian)
+    int8_t  snr;               // receiver fills this
+    int8_t  rssi;              // receiver fills this
+    uint16_t histogram[30];    // optional histogram data (30 bins)
+    uint8_t  pad[174];         // padding to make sizeof(sband_payload_t)==246 bytes
+} sband_payload_t;
+
+// Packet queue storage (arrays) — packet_sband_t removed as requested
+volatile uint8_t packet_queue_sband[QUEUE_SIZE_SBAND][PACKET_SIZE_SBAND];
 
 // Global queue variables for ISR access
-volatile packet_sband_t packet_queue_sband[QUEUE_SIZE_SBAND];  //256 * 15 = 3840 bytes!
 volatile uint8_t queue_head_sband = 0;  // ISR writes here
 volatile uint8_t queue_tail_sband = 0;  // Main loop reads here
 volatile uint8_t queue_count_sband = 0;
@@ -100,20 +112,18 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
         last_packet_time_sband = get_absolute_time();  // Turn it off after seen
         // Check if queue has space
         if (queue_count_sband < QUEUE_SIZE_SBAND) {
-            volatile packet_sband_t *pkt = &packet_queue_sband[queue_head_sband];
+            uint8_t idx = queue_head_sband;
 
-            // Read packet from FIFO
-            pkt->length = sband_packet_from_fifo((uint8_t*)pkt->data);
-
-            // Get SNR and RSSI
-            pkt->snr = sband_get_snr();
-            pkt->rssi = sband_get_rssi();
-
-            // Update SNR and RSSI in packet starting at byte 25
-            // Format: "SNR = %4d; RSSI = %4d"
-            if (pkt->length > 25) {
-                snprintf((char*)&pkt->data[25], 25, "SNR = %4d; RSSI = %4d",
-                         (int)pkt->snr, (int)pkt->rssi);
+            // Read packet from FIFO directly into our array slot
+            int payload_len = sband_packet_from_fifo((uint8_t*)packet_queue_sband[idx]);
+            if (payload_len > 0) {
+                // Store length, SNR and RSSI inside the received buffer so the
+                // main/core1 processing code can extract them without separate arrays.
+                packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)] = (uint8_t)payload_len;
+                int8_t snr = sband_get_snr();
+                int16_t rssi = sband_get_rssi();
+                packet_queue_sband[idx][offsetof(sband_payload_t, snr)] = (uint8_t)snr;
+                packet_queue_sband[idx][offsetof(sband_payload_t, rssi)] = (uint8_t)rssi;
             }
 
             // Update queue
@@ -262,7 +272,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
                prev_UHF_TX, UHF_TX, radio_initialized);
         if (UHF_TX) {
             // UHF_TX went from false to true: Stop Sband TX, start Sband RX
-            printf("SBand: Transition to RX mode (UHF is TX)\n");
+            printf("SBand: Transitioning to RX mode driven by UHF transmitting\n");
             if (radio_initialized) {
                 sband_listen();
                 gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
@@ -293,7 +303,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             }
         }
         prev_UHF_TX = UHF_TX;
-    }
+    }   // End of UHF_TX state change handling
 
 #if !SBAND_RX_USE_INTERRUPTS
     // Polling mode: Check for RX_DONE every loop iteration
@@ -305,34 +315,34 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 
             // Check if queue has space
             if (queue_count_sband < QUEUE_SIZE_SBAND) {
-                volatile packet_sband_t *pkt = &packet_queue_sband[queue_head_sband];
+                uint8_t idx = queue_head_sband;
 
-                // Read packet from FIFO
-                pkt->length = sband_packet_from_fifo((uint8_t*)pkt->data);
+                    // Read packet from FIFO into the array slot
+                    int payload_len = sband_packet_from_fifo((uint8_t*)packet_queue_sband[idx]);
+                    if (payload_len > 0) {
+                        // Store length, SNR and RSSI inside the packet buffer
+                        packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)] = (uint8_t)payload_len;
+                        int8_t snr = sband_get_snr();
+                        int16_t rssi = sband_get_rssi();
+                        packet_queue_sband[idx][offsetof(sband_payload_t, snr)] = (uint8_t)snr;
+                        packet_queue_sband[idx][offsetof(sband_payload_t, rssi)] = (uint8_t)rssi;
+                    }
 
-                // Get SNR and RSSI
-                pkt->snr = sband_get_snr();
-                pkt->rssi = sband_get_rssi();
+                    // Update queue
+                    queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;
+                    queue_count_sband++;
 
-                // Overwrite sender's histogram in received packet with our SNR and RSSI
-                if (pkt->length > (25 + 21)) {  // Ensure enough space; 21 is length of string below
-                    snprintf((char*)&pkt->data[25], 25, "SNR = %4d; RSSI = %4d",
-                             (int)pkt->snr, (int)pkt->rssi);
-                }
-
-                // Update queue
-                queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;
-                queue_count_sband++;
-
-                printf("SBand: Packet received, len=%d, SNR=%d, RSSI=%d\n",
-                       pkt->length, pkt->snr, pkt->rssi);
+                    printf("SBand: Packet received, len=%d, SNR=%d, RSSI=%d\n",
+                           packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)],
+                           (int8_t)packet_queue_sband[idx][offsetof(sband_payload_t, snr)],
+                           (int8_t)packet_queue_sband[idx][offsetof(sband_payload_t, rssi)]);
             }
 
             // Clear RX_DONE and continue listening
             sband_clear_irq_status(SX1280_IRQ_RX_DONE);
             sband_listen();
         }
-    }
+    }  // end of RX polling & enqueueing
 #endif
 
     // Skip all radio operations if not initialized
@@ -351,68 +361,53 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 
         // Process all packets in receive queue
         while (queue_count_sband > 0) {
-            volatile packet_sband_t *pkt = &packet_queue_sband[queue_tail_sband];
+            uint8_t idx = queue_tail_sband;
             blue();
-            // Parse power value from packet
-            // Format: "TX Power = %02d"; the power number is at byte offset 11
+            // Parse structured payload sent by peer
             int power = 0;
-            if (sscanf((char*)pkt->data + 11, "%d", &power) == 1) {
-                // Extract packet set counter after power string
-                if (pkt->length >= 24) {
-                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 17);
-                    sband_last_rx_packet_set_count = rx_packet_set_count;
-
-                    // Histogram begins recording after both RX and TX have started
-                    //  to avoid mis-alignment due to late starts
-                    if (rx_packet_set_count == 0) {
-                        // The distant Transmitter rebooted - reset our histogram and offset
-                        for (int i = 0; i < 32; i++) {
-                            power_histogram_sband[i] = 0;
-                        }
-                        sband_rx_packet_set_offset = 0;
-                        sband_offset_initialized = false;
-                    } else if (!sband_offset_initialized) {
-                        // First packet received with count > 0 - save offset
-                        sband_rx_packet_set_offset = rx_packet_set_count;
-                        sband_offset_initialized = true;
-                    }
+            uint8_t stored_len = packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)];
+            if (stored_len >= (int)sizeof(sband_payload_t)) {
+                sband_payload_t rpl;
+                // Received payload starts at packet_queue_sband[idx][0] (SX1280 strips 4-byte preamble)
+                memcpy(&rpl, (const void*)packet_queue_sband[idx], sizeof(rpl));
+            power = (int)rpl.power;
+            uint32_t rx_packet_set_count = rpl.packet_set_count;
+            sband_last_rx_packet_set_count = rx_packet_set_count;
+            // Histogram begins recording after both RX and TX have started
+            // to avoid mis-alignment due to late starts
+            if (rx_packet_set_count == 0) {
+                // The distant Transmitter rebooted - reset our histogram and offset
+                for (int i = 0; i < 32; i++) {
+                    power_histogram_sband[i] = 0;
                 }
+                sband_rx_packet_set_offset = 0;
+                sband_offset_initialized = false;
+            } else if (!sband_offset_initialized) {
+                // First packet received with count > 0 - save offset
+                sband_rx_packet_set_offset = rx_packet_set_count;
+                sband_offset_initialized = true;
+            }
 
-                // SBand receives from another identical SBand radio (same band)
-                // Flash the same code to both radios
-                int hist_index = power - SBAND_MIN_POWER;  // Map SBand min power to index 0
-                if (hist_index >= 0 && hist_index < 32) {
-                    power_histogram_sband[hist_index]++;
-                } else {
-                    printf("SBand Warning: Received out-of-range power value: %d (expected SBand range %d-%d)\n",
-                           power, SBAND_MIN_POWER, SBAND_MAX_POWER);
-                }
+            // SBand receives from another identical SBand radio (same band)
+            int hist_index = power - SBAND_MIN_POWER;  // Map SBand min power to index 0
+            if (hist_index >= 0 && hist_index < 32) {
+                // NOTE: This increment happens on Core1 while Core0 may read
+                // the histogram for realtime display. At rare moments when the
+                // higher byte of the counter wraps and the increment carries
+                // into that higher byte, the displayed histogram value may
+                // briefly be off by 256. This is acceptable for a realtime
+                // display and avoids locking overhead in the hot path.
+                power_histogram_sband[hist_index]++;
             } else {
-                printf("SBand Warning: Failed to parse power from packet\n");
-                printf("Packet data (len=%d): ", pkt->length);
-                for (int i = 0; i < pkt->length; i++) {
-                    printf("%02X ", pkt->data[i]);
-                }
-                printf("\n");
+                printf("SBand Warning: Received out-of-range power value: %d (expected SBand range %d-%d)\n",
+                       power, SBAND_MIN_POWER, SBAND_MAX_POWER);
             }
 
             // Update queue
             queue_tail_sband = (queue_tail_sband + 1) % QUEUE_SIZE_SBAND;
             queue_count_sband--;
         }
-
-        // Print the power histogram into buffer_Sband_RX
-        int remaining_space = BUFLEN*2 - strlen(buffer_Sband_RX) - 1;
-        for (int i = 0; (i < 32) && (remaining_space > 0); i++) {
-            int written = snprintf(buffer_Sband_RX + strlen(buffer_Sband_RX), remaining_space,
-                                  "%d ", power_histogram_sband[i]);
-            if (written < 0 || written >= remaining_space) {
-                printf("SBand Warning: Buffer overflow while writing histogram\n");
-                break;
-            }
-            remaining_space -= written;
-        }
-
+    }   // End of if (stored_len >= (int)sizeof(sband_payload_t))
         // Calculate and display packet loss statistics (only when count changes)
         if ((sband_last_rx_packet_set_count > 0 &&
             sband_last_rx_packet_set_count != sband_last_printed_packet_set_count)) {
@@ -440,32 +435,36 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 
             // Update last printed count
             sband_last_printed_packet_set_count = sband_last_rx_packet_set_count;
-        }
-    }
+        } // End of packet loss statistics display
+    }  // End of RX processing
 
     // SBAND_TX: Transmit when UHF is in RX mode (!UHF_TX)
     // If currently transmitting (UHF in RX mode), send one packet per invocation
     if (!UHF_TX && radio_initialized) {
         sband_set_tx_params(current_tx_power_sband, 0x02);  // Set power, ramp 20μs
 
-        // Create packet: preamble + power + spaces to fill 250 bytes
+        // Create packet: 4-byte preamble then packed sband_payload_t
         memset(tx_packet_sband, ' ', 250);  // Fill with spaces
-        tx_packet_sband[0] = '\xFF';    // Network Bytes
-        tx_packet_sband[1] = '\xFF';
-        tx_packet_sband[2] = '\xFF';
-        tx_packet_sband[3] = '\xFF';
-        // Format power with leading zero or minus sign
-        sprintf((char*)tx_packet_sband + 4, "TX Power = %02d", current_tx_power_sband);
-        // Add packet set counter at fixed position (bytes 20-23, after power string)
-        write_uint32_le(tx_packet_sband + 20, sband_packet_set_count);
+        sband_payload_t payload;
+        memset(&payload, 0, sizeof(payload));
+        // Network bytes (this is not the preamble that SX1280 adds/removes automatically)
+        payload.dest = 0xFF; // broadcast by default
+        payload.src = 0x01;  // source id
+        payload.ack = 0x00;
+        payload.serial = (uint8_t)(sband_packet_set_count & 0xFF);
+        payload.power = (int8_t)current_tx_power_sband;
+        payload.packet_set_count = sband_packet_set_count;
+        payload.snr = 0;
+        payload.rssi = 0;
+        // histogram left zero
 
-        // Copy current SBand RX display buffer into packet after the counter
-        size_t s_offset = 24;  // After 4 network bytes + 14 power string + 2 padding + 4 counter bytes
-        size_t s_copy_len = strlen(buffer_Sband_RX);
-        if (s_copy_len > (size_t)(250 - s_offset)) s_copy_len = 250 - s_offset;
-        if (s_copy_len > 0) {
-            memcpy(tx_packet_sband + s_offset, buffer_Sband_RX, s_copy_len);
+        // Fill padding with sequential values 0x00,0x01,... to reach full payload size
+        for (size_t i = 0; i < sizeof(payload.pad); i++) {
+            payload.pad[i] = (uint8_t)(i & 0xFF);
         }
+
+        // Copy payload
+        memcpy(tx_packet_sband, &payload, sizeof(payload));
 
         // Wait for TX completion. PHM Could also check for timeout on next invocation and before transmitting again.
         // Clear any stale IRQ flags, write packet and transmit
@@ -505,4 +504,13 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     if (UHF_TX && absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) > 2000000) {
         red();
     }
+}
+
+// Print SBand power histogram to console (callable from main.c)
+void sband_print_histogram(void) {
+    printf("SRX ");
+    for (int i = 0; i < 32; i++) {
+        printf("%d ", power_histogram_sband[i]);
+    }
+    printf("\n");
 }

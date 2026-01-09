@@ -208,12 +208,12 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
 //  A packet has been received
             green();
 
-            // Parse power value from packet.  Format: "\xFF\xFF\xFF\xFFTX Power = %02d"
+            // Parse power value from packet.  Format: "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFFTX Power = %02d"
             int power = 0;
-            if (sscanf((char*)pkt->data + 4, "TX Power = %d", &power) == 1) {
-                // Extract packet set counter from bytes 20-23 (after power string)
-                if (pkt->length >= 24) {
-                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 20);
+            if (sscanf((char*)pkt->data + 8, "TX Power = %d", &power) == 1) {
+                // Extract packet set counter from bytes 24-27 (after network bytes and power string)
+                if (pkt->length >= 28) {
+                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 24);
                     uhf_last_rx_packet_set_count = rx_packet_set_count;
 
                     // Handle synchronization
@@ -301,19 +301,24 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         red();  // Indicate transmitting to user
         rfm96_set_tx_power(current_tx_power_uhf);
 
-        // Create packet: preamble + power + spaces to fill 250 bytes
+        // Create packet: preamble + 4 network bytes + power + spaces to fill 250 bytes
         memset(tx_packet, ' ', 250);  // Fill with spaces
         tx_packet[0] = '\xFF';
         tx_packet[1] = '\xFF';
         tx_packet[2] = '\xFF';
         tx_packet[3] = '\xFF';
-        // Format power with leading zero or minus sign
-        sprintf((char*)tx_packet + 4, "TX Power = %02d", current_tx_power_uhf);
-        // Add packet set counter at fixed position (bytes 20-23, after power string)
-        write_uint32_le(tx_packet + 20, uhf_packet_set_count);
+        // Network bytes: dest, src, ack, serial - initialize to broadcast/unknown (0xFF)
+        tx_packet[4] = 0xFF; // dest
+        tx_packet[5] = 0xFF; // src
+        tx_packet[6] = 0xFF; // ack
+        tx_packet[7] = 0xFF; // serial
+        // Format power with leading zero or minus sign (moved after network bytes)
+        sprintf((char*)tx_packet + 8, "TX Power = %02d", current_tx_power_uhf);
+        // Add packet set counter at fixed position (bytes 24-27, shifted by 4 bytes)
+        write_uint32_le(tx_packet + 24, uhf_packet_set_count);
 
         // Copy current RX display buffer into packet after the counter
-        size_t offset = 24;  // After preamble (4) + power string (14) + counter (4) + padding (2)
+        size_t offset = 28;  // After preamble (4) + network (4) + power string (14) + counter (4)
         size_t copy_len = strlen(buffer_RADIO_RX);
         if (copy_len > (size_t)(250 - offset)) copy_len = 250 - offset;
         if (copy_len > 0) {

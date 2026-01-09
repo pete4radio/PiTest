@@ -17,6 +17,9 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX);
 // ISR handler (called by GPIO interrupt)
 void sband_dio1_isr(uint gpio, uint32_t events);
 
+// Print the SBand power histogram to console
+void sband_print_histogram(void);
+
 // Timestamp of last SBand packet received (for LED logic)
 extern volatile absolute_time_t sband_last_rx_time;
 

@@ -385,10 +385,8 @@ int main() {
                 printf("SBand TX: %s", (const char*)buffer_Sband_TX);
                 buffer_Sband_TX[0] = '\0';  // Clear buffer after printing  PHM is this necessary?
             }
-            if (strlen((const char*)buffer_Sband_RX) > 0) {
-                printf("SBand RX: %s\n", (const char*)buffer_Sband_RX);
-                buffer_Sband_RX[0] = '\0';  // Clear buffer after printing  PHM is this necessary?
-            }
+            // Print SBand histogram (reads internal SBand struct)
+            sband_print_histogram();
             printf(buffer_UART);
             printf(buffer_UART2);
             printf(buffer_GPS);
