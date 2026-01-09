@@ -267,7 +267,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         first_call = false;
     }
 
-    if (UHF_TX != prev_UHF_TX) {
+    if (UHF_TX != prev_UHF_TX) {    // UHF_TX state changed -- We follow.  This is the initialization/switchover code.
         printf("SBand: UHF_TX changed %d->%d, radio_init=%d\n",
                prev_UHF_TX, UHF_TX, radio_initialized);
         if (UHF_TX) {
@@ -282,12 +282,9 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             buffer_Sband_TX[0] = '\0';  // Clear TX buffer
         } else {
             // UHF_TX went from true to false: Stop Sband RX, start Sband TX
-
-            // If radio not initialized, attempt re-initialization
             if (!radio_initialized) {
                 printf("SBand: Radio not initialized, attempting re-initialization...\n");
                 radio_initialized = attempt_sband_init();
-
                 if (radio_initialized) {
                     printf("SBand: Re-initialization SUCCESSFUL\n");
                 } else {
@@ -306,7 +303,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     }   // End of UHF_TX state change handling
 
 #if !SBAND_RX_USE_INTERRUPTS
-    // Polling mode: Check for RX_DONE every loop iteration
+    // We're in RX, but DIO1 is broken, so use polling mode: Check for RX_DONE every loop iteration
     if (radio_initialized && UHF_TX) {
         if (sband_rx_done()) {
             printf("SBand: RX_DONE detected via polling\n");
@@ -327,15 +324,14 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
                         packet_queue_sband[idx][offsetof(sband_payload_t, snr)] = (uint8_t)snr;
                         packet_queue_sband[idx][offsetof(sband_payload_t, rssi)] = (uint8_t)rssi;
                     }
-
-                    // Update queue
-                    queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;
-                    queue_count_sband++;
-
                     printf("SBand: Packet received, len=%d, SNR=%d, RSSI=%d\n",
                            packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)],
                            (int8_t)packet_queue_sband[idx][offsetof(sband_payload_t, snr)],
                            (int8_t)packet_queue_sband[idx][offsetof(sband_payload_t, rssi)]);
+                    
+                   // Update queue
+                    queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;
+                    queue_count_sband++;
             }
 
             // Clear RX_DONE and continue listening
@@ -345,19 +341,16 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     }  // end of RX polling & enqueueing
 #endif
 
-    // Skip all radio operations if not initialized
+    // Skip all radio operations if not initialized PHM might not need this as queue will be empty?
     if (!radio_initialized) {return;}
 
-    // SBAND_RX: Process packet queue (filled by ISR) - ONLY when UHF is transmitting
+    // SBAND_RX: Ocasionally process packet queue filled by ISR or polling only when UHF is transmitting
     if (UHF_TX && radio_initialized &&
         absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
         previous_time_Sband_RX = get_absolute_time();
         sprintf(buffer_Sband_RX, "SRX ");  // using suffixes for version identification
 
-        if (nCRC_sband > 0) {
-            sprintf(buffer_Sband_RX + strlen(buffer_Sband_RX), "%d CRC ", nCRC_sband);
-            nCRC_sband = 0;  // Zero out CRC error count after displaying  PHM this is probably not working right
-        }
+
 
         // Process all packets in receive queue
         while (queue_count_sband > 0) {
@@ -509,6 +502,12 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 // Print SBand power histogram to console (callable from main.c)
 void sband_print_histogram(void) {
     printf("SRX ");
+
+    if (nCRC_sband > 0) {
+        printf("%d CRC ", nCRC_sband);
+        nCRC_sband = 0;  // Zero out CRC error count after displaying  PHM this is probably not working right
+    }
+
     for (int i = 0; i < 32; i++) {
         printf("%d ", power_histogram_sband[i]);
     }
