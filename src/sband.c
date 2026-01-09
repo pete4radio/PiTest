@@ -15,7 +15,7 @@
  * - BUSY pin (D0) polled before SPI commands with 20ms timeout
  * - IRQ status is 16-bit (vs 8-bit)
  * - Frequency range 2.4 GHz (vs 437 MHz)
- * - Shared SPI bus with UHF radio
+ * - Separate SPI bus from UHF radio allows simultaneous operation
  */
 
 // Enable/disable setter verification (compile-time flag)
@@ -448,7 +448,8 @@ void sband_listen(void) {
     // Clear any pending interrupts before entering RX
     sband_clear_irq_status(0xFFFF);  // Clear all IRQ flags
 
-    // Update the antenna relay, PA and LNA (Not sure that is actually what this)
+    // Update the antenna relay, PA and LNA (I think that is actually what this is, 
+    // but can't confirm without hardware docs)
     gpio_put(sband_txen_pin, 0);  // Disable TX path
     gpio_put(sband_rxen_pin, 1);  // Enable RX path
     uint8_t cmd_data[3];
@@ -457,11 +458,10 @@ void sband_listen(void) {
     cmd_data[2] = 0xFF;  // periodBaseCount LSB
 
 // Map DIO1 to RX_DONE interrupt
-sband_set_dio_irq_params(SX1280_IRQ_RX_DONE, SX1280_IRQ_RX_DONE, 0, 0);
+    sband_set_dio_irq_params(SX1280_IRQ_RX_DONE, SX1280_IRQ_RX_DONE, 0, 0);
 
-// Enable interrupts for rising transitions on DIO1 pin.  This will hang at the moment, even 
-// tho DIO1 never asserts.
-//    gpio_set_irq_enabled_with_callback(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true, NULL);
+// Enable interrupts for rising transitions on DIO1 pin.
+    gpio_set_irq_enabled(sband_d0_pin, GPIO_IRQ_EDGE_RISE, true);
 
     sband_write_command(SX1280_CMD_SET_RX, cmd_data, 3);
 
@@ -540,10 +540,10 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
     printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, offset);
 
     if (payload_len > 0 && payload_len <= 256) {
-        // Read the buffer - READ_BUFFER returns 7 status bytes before data
+        // Read the buffer - READ_BUFFER returns 7 status bytes before data PHM Really?
         sband_tx_combined[0] = SX1280_CMD_READ_BUFFER;
         sband_tx_combined[1] = offset;
-        memset(sband_tx_combined + 2, 0x00, payload_len + 5);  // Need 5 extra dummy bytes
+        memset(sband_tx_combined + 2, 0x00, payload_len + 5);  // Need 5 extra dummy bytes (??)
 
         sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 7);
 
@@ -723,7 +723,7 @@ int sband_init(void) {
     spi_set_format(sband_spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
     // Claim DMA channels for SPI transfers, if not already done
-    if (sband_tx_dma_chan == -1 && sband_rx_dma_chan == -1) {
+    if (sband_tx_dma_chan == -1 || sband_rx_dma_chan == -1) {  // Either one missing will claim two fresh ones
         sband_tx_dma_chan = dma_claim_unused_channel(true);
         sband_rx_dma_chan = dma_claim_unused_channel(true);
         if (sband_tx_dma_chan == -1 || sband_rx_dma_chan == -1) {
@@ -733,6 +733,9 @@ int sband_init(void) {
             printf("SBand: Claimed DMA channels for SX1280: TX=%d, RX=%d\n",
                    sband_tx_dma_chan, sband_rx_dma_chan);
         }
+    } else {
+        printf("SBand: Using previously claimed DMA channels for SX1280: TX=%d, RX=%d\n",
+               sband_tx_dma_chan, sband_rx_dma_chan);
     }
 
     // Configure RX DMA (same for all transactions)

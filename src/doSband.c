@@ -44,7 +44,7 @@ typedef struct {
 } packet_sband_t;
 
 // Global queue variables for ISR access
-volatile packet_sband_t packet_queue_sband[QUEUE_SIZE_SBAND];
+volatile packet_sband_t packet_queue_sband[QUEUE_SIZE_SBAND];  //256 * 15 = 3840 bytes!
 volatile uint8_t queue_head_sband = 0;  // ISR writes here
 volatile uint8_t queue_tail_sband = 0;  // Main loop reads here
 volatile uint8_t queue_count_sband = 0;
@@ -314,8 +314,8 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
                 pkt->snr = sband_get_snr();
                 pkt->rssi = sband_get_rssi();
 
-                // Update SNR and RSSI in packet
-                if (pkt->length > 25) {
+                // Overwrite sender's histogram in received packet with our SNR and RSSI
+                if (pkt->length > (25 + 21)) {  // Ensure enough space; 21 is length of string below
                     snprintf((char*)&pkt->data[25], 25, "SNR = %4d; RSSI = %4d",
                              (int)pkt->snr, (int)pkt->rssi);
                 }
@@ -342,24 +342,24 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     if (UHF_TX && radio_initialized &&
         absolute_time_diff_us(previous_time_Sband_RX, get_absolute_time()) >= interval_Sband_RX) {
         previous_time_Sband_RX = get_absolute_time();
-        sprintf(buffer_Sband_RX, "SB_RX ");  // using suffixes for version identification
+        sprintf(buffer_Sband_RX, "SRX ");  // using suffixes for version identification
 
         if (nCRC_sband > 0) {
             sprintf(buffer_Sband_RX + strlen(buffer_Sband_RX), "%d CRC ", nCRC_sband);
             nCRC_sband = 0;  // Zero out CRC error count after displaying  PHM this is probably not working right
         }
 
-        // Process all packets in queue
+        // Process all packets in receive queue
         while (queue_count_sband > 0) {
             volatile packet_sband_t *pkt = &packet_queue_sband[queue_tail_sband];
             blue();
             // Parse power value from packet
-            // Format: "TX Power = %02d" (preamble stripped by SX1280)
+            // Format: "TX Power = %02d"; the power number is at byte offset 11
             int power = 0;
-            if (sscanf((char*)pkt->data, "TX Power = %d", &power) == 1) {
+            if (sscanf((char*)pkt->data + 11, "%d", &power) == 1) {
                 // Extract packet set counter after power string
-                if (pkt->length >= 28) {
-                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 20);
+                if (pkt->length >= 24) {
+                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 17);
                     sband_last_rx_packet_set_count = rx_packet_set_count;
 
                     // Histogram begins recording after both RX and TX have started
@@ -450,7 +450,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 
         // Create packet: preamble + power + spaces to fill 250 bytes
         memset(tx_packet_sband, ' ', 250);  // Fill with spaces
-        tx_packet_sband[0] = '\xFF';
+        tx_packet_sband[0] = '\xFF';    // Network Bytes
         tx_packet_sband[1] = '\xFF';
         tx_packet_sband[2] = '\xFF';
         tx_packet_sband[3] = '\xFF';
@@ -460,7 +460,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         write_uint32_le(tx_packet_sband + 20, sband_packet_set_count);
 
         // Copy current SBand RX display buffer into packet after the counter
-        size_t s_offset = 20;  // After preamble (4) + power string (14) + counter (4) + padding (2)
+        size_t s_offset = 24;  // After 4 network bytes + 14 power string + 2 padding + 4 counter bytes
         size_t s_copy_len = strlen(buffer_Sband_RX);
         if (s_copy_len > (size_t)(250 - s_offset)) s_copy_len = 250 - s_offset;
         if (s_copy_len > 0) {

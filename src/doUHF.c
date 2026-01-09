@@ -194,7 +194,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
     if (!UHF_TX &&
         absolute_time_diff_us(previous_time_RADIO_RX, get_absolute_time()) >= interval_RADIO_RX) {
         previous_time_RADIO_RX = get_absolute_time();
-        sprintf(buffer_RADIO_RX, "RX ");  // Clears out the results buffer
+        sprintf(buffer_RADIO_RX, "URX ");  // Clears out the prior results buffer
 
         if (nCRC > 0) {
             sprintf(buffer_RADIO_RX + strlen(buffer_RADIO_RX), "%d CRC ", nCRC);
