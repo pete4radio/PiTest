@@ -525,6 +525,12 @@ void sband_packet_to_fifo(uint8_t *buf, uint8_t n) {
     memcpy(cmd_data + 1, buf, n);
 
     sband_write_command(SX1280_CMD_WRITE_BUFFER, cmd_data, n + 1);
+
+     printf("SBand.c: TX Packet data (first 32 bytes): ");
+        for (int i = 0; i < (n < 32 ? n : 32); i++) {
+            printf("%02X ", buf[i]);
+        }
+        printf("\n");
 }
 
 // Read packet from FIFO
@@ -540,18 +546,18 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
     printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, offset);
 
     if (payload_len > 0 && payload_len <= 256) {
-        // Read the buffer - READ_BUFFER returns 7 status bytes before data PHM Really?
+        // Read the buffer
         sband_tx_combined[0] = SX1280_CMD_READ_BUFFER;
         sband_tx_combined[1] = offset;
         memset(sband_tx_combined + 2, 0x00, payload_len + 5);  // Need 5 extra dummy bytes (??)
 
         sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 7);
 
-        // Copy data (skip 7 status bytes)
-        memcpy(buf, sband_rx_combined + 7, payload_len);
+        // Copy data to output buf
+        memcpy(buf, sband_rx_combined + 6, payload_len - 6);
 
         // Debug: Print first 32 bytes of packet
-        printf("SBand: Packet data (first 32 bytes): ");
+        printf("SBand.c: RX Packet data (first 32 bytes): ");
         for (int i = 0; i < (payload_len < 32 ? payload_len : 32); i++) {
             printf("%02X ", buf[i]);
         }
