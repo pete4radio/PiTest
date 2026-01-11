@@ -389,6 +389,11 @@ void sband_set_buffer_base_address(uint8_t tx_base, uint8_t rx_base) {
     cmd_data[1] = rx_base;  // RX base address in buffer (typically 0x00)
 
     sband_write_command(SX1280_CMD_SET_BUFFER_BASE_ADDRESS, cmd_data, 2);
+
+    if (sband_get_rx_offset() != rx_base) {
+        printf("SBand.c sband_set_buffer_base_address: WARNING: RX base address mismatch: expected %02X, got %02X\n",
+               rx_base, sband_get_rx_offset());
+    }       
 }
 
 // Set TX parameters
@@ -619,6 +624,15 @@ sx1280_packet_type_t sband_get_packet_type(void) {
     uint8_t packet_type;
     sband_read_command(SX1280_CMD_GET_PACKET_TYPE, &packet_type, 1);
     return (sx1280_packet_type_t)packet_type;
+}
+
+// Get RX buffer offset (reads from chip via CMD_GET_RX_BUFFER_STATUS)
+uint8_t sband_get_rx_offset(void) {
+    uint8_t buffer_info[2];
+    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 2);
+    // buffer_info[0] = payload length
+    // buffer_info[1] = RX buffer offset
+    return buffer_info[1];
 }
 
 // Verify SX1280 chip is present by reading version string

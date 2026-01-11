@@ -113,6 +113,7 @@ int sband_verify_chip(char *version_out);
 // Getter functions (only for chip-readable values)
 sx1280_mode_t sband_get_mode(void);
 sx1280_packet_type_t sband_get_packet_type(void);
+uint8_t sband_get_rx_offset(void);
 
 // JSON configuration loading
 int sband_load_config_json(const char *json_string, sband_config_t *config);  //PHM is this necessary?
