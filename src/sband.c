@@ -548,11 +548,16 @@ void sband_packet_to_fifo(uint8_t *buf, uint8_t n) {
 uint8_t sband_packet_from_fifo(uint8_t *buf) {
     // Get chip's RX buffer info first.  Let's not confuse the chips buffer "status" with
     // the status byte returned by SPI commands, which is discarded in sband_read_command.
-    uint8_t buffer_info[2];
-    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 2);
-    // rename them for clarity, I presume the compiler will optimize this away
-    uint8_t payload_len = buffer_info[0];
-    uint8_t rx_offset = buffer_info[1];  // Offset in chip's buffer where payload starts
+    // SPI exchange: TX: [0x17][NOP][NOP][NOP][NOP]
+    //               RX: [status][status][rxPayloadLength][rxStartBufferPointer]
+    uint8_t buffer_info[4];
+    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 4);
+    // buffer_info[0] = first status (discarded by sband_read_command)
+    // buffer_info[1] = second status byte
+    // buffer_info[2] = payload length
+    // buffer_info[3] = RX buffer offset
+    uint8_t payload_len = buffer_info[1];
+    uint8_t rx_offset = buffer_info[2];  // Offset in chip's buffer where payload starts
     printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, rx_offset);
 
     if (payload_len > 0 && payload_len <= 256) {
@@ -627,12 +632,16 @@ sx1280_packet_type_t sband_get_packet_type(void) {
 }
 
 // Get RX buffer offset (reads from chip via CMD_GET_RX_BUFFER_STATUS)
+// SPI exchange: TX: [0x17][NOP][NOP][NOP][NOP]
+//               RX: [status][status][rxPayloadLength][rxStartBufferPointer]
 uint8_t sband_get_rx_offset(void) {
-    uint8_t buffer_info[2];
-    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 2);
-    // buffer_info[0] = payload length
-    // buffer_info[1] = RX buffer offset
-    return buffer_info[1];
+    uint8_t buffer_info[4];
+    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 4);
+    // buffer_info[0] = first status byte (discarded by sband_read_command)
+    // buffer_info[1] = second status byte
+    // buffer_info[2] = payload length
+    // buffer_info[3] = RX buffer offset
+    return buffer_info[3];
 }
 
 // Verify SX1280 chip is present by reading version string
