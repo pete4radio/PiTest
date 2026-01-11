@@ -20,6 +20,10 @@ void sband_dio1_isr(uint gpio, uint32_t events);
 // Print the SBand power histogram to console
 void sband_print_histogram(void);
 
+// Forward-declare payload struct and print helper
+typedef struct sband_payload_t sband_payload_t;
+void sband_print_payload(const sband_payload_t *p);
+
 // Timestamp of last SBand packet received (for LED logic)
 extern volatile absolute_time_t sband_last_rx_time;
 

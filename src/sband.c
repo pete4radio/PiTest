@@ -212,6 +212,11 @@ static void sband_write_command(uint8_t cmd, const uint8_t *data, uint8_t len) {
 }
 
 // Read command with data
+// Inputs: cmd - command byte
+//         data - pointer to buffer to store read data
+//         len - number of data bytes to read
+//Outputs: data buffer filled with read bytes (does not include status byte)
+// Protocol: [cmd] [NOP...] → [status] [data0] [data1] ...
 static void sband_read_command(uint8_t cmd, uint8_t *data, uint8_t len) {
     sband_tx_combined[0] = cmd;
     memset(sband_tx_combined + 1, 0x00, len);  // Dummy bytes for SPI read
@@ -526,29 +531,29 @@ void sband_packet_to_fifo(uint8_t *buf, uint8_t n) {
 
     sband_write_command(SX1280_CMD_WRITE_BUFFER, cmd_data, n + 1);
 
-     printf("SBand.c: TX Packet data (first 32 bytes): ");
+/*      printf("SBand.c: TX Packet data (first 32 bytes): ");
         for (int i = 0; i < (n < 32 ? n : 32); i++) {
             printf("%02X ", buf[i]);
         }
-        printf("\n");
+    printf("\n"); */
 }
 
 // Read packet from FIFO
 // Returns the number of bytes read
 uint8_t sband_packet_from_fifo(uint8_t *buf) {
-    // Get RX buffer status first
-    uint8_t status[2];
-    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, status, 2);
-
-    uint8_t payload_len = status[0];
-    uint8_t offset = status[1];
-
-    printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, offset);
+    // Get chip's RX buffer info first.  Let's not confuse the chips buffer "status" with
+    // the status byte returned by SPI commands, which is discarded in sband_read_command.
+    uint8_t buffer_info[2];
+    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 2);
+    // rename them for clarity, I presume the compiler will optimize this away
+    uint8_t payload_len = buffer_info[0];
+    uint8_t rx_offset = buffer_info[1];  // Offset in chip's buffer where payload starts
+    printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, rx_offset);
 
     if (payload_len > 0 && payload_len <= 256) {
         // Read the buffer
         sband_tx_combined[0] = SX1280_CMD_READ_BUFFER;
-        sband_tx_combined[1] = offset;
+        sband_tx_combined[1] = rx_offset;
         memset(sband_tx_combined + 2, 0x00, payload_len + 5);  // Need 5 extra dummy bytes (??)
 
         sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 7);
@@ -777,6 +782,24 @@ int sband_init(void) {
         return -1;
     }
 
+        // Verify chip is present
+    char version[16];
+    if (!sband_verify_chip(version)) {
+        printf("SBand: ERROR: SX1280 not found (no response from chip)\n");
+        return -1;
+    }
+
+    // Print version string for debugging
+    printf("SBand: SX1280 detected, version: ");
+    for (int i = 0; i < 16; i++) {
+        if (version[i] >= 32 && version[i] <= 126) {
+            printf("%c", version[i]);
+        } else {
+            printf("\\x%02X", (uint8_t)version[i]);
+        }
+    }
+    printf("\n");
+
     // Chip should already be in STANDBY_RC after reset, but set it explicitly
     sband_set_mode(SX1280_MODE_STDBY_RC);
 
@@ -801,6 +824,10 @@ int sband_init(void) {
     sband_set_buffer_base_address(0x00, 0x00);  // TX and RX both start at 0x00 in 256-byte buffer
     sband_set_tx_params(13, 0x02);  // 13 dBm, ramp 20us
 
+
+    // Note that the SX1280 chip does not support reading back settings to verify them,
+    // so we will assume the commands were successful if no BUSY timeout occurred.
+
     // Configure interrupts
     uint16_t irq_mask = SX1280_IRQ_TX_DONE | SX1280_IRQ_RX_DONE | SX1280_IRQ_CRC_ERROR;
     sband_set_dio_irq_params(irq_mask, irq_mask, 0, 0);
@@ -813,23 +840,6 @@ int sband_init(void) {
     printf("SBand: SX1280 DMA initialized (DMA TX=%d, RX=%d)\n",
            sband_tx_dma_chan, sband_rx_dma_chan);
 
-    // Verify chip is present
-    char version[16];
-    if (!sband_verify_chip(version)) {
-        printf("SBand: ERROR: SX1280 not found (no response from chip)\n");
-        return -1;
-    }
-
-    // Print version string for debugging
-    printf("SBand: SX1280 detected, version: ");
-    for (int i = 0; i < 16; i++) {
-        if (version[i] >= 32 && version[i] <= 126) {
-            printf("%c", version[i]);
-        } else {
-            printf("\\x%02X", (uint8_t)version[i]);
-        }
-    }
-    printf("\n");
 
     return 0;
 }

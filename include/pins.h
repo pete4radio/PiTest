@@ -141,6 +141,32 @@ typedef enum
             printf("Assertion failed: " #condition "\r\n"); \
         }                                            \
     }
+
+/**
+ * Assert equality with value printing on failure.
+ */
+#define ASSERT_EQ(a, b)                              \
+    do {                                             \
+        typeof(a) _a = (a);                          \
+        typeof(b) _b = (b);                          \
+        if (_a != _b)                                \
+        {                                            \
+            printf("Assertion failed: " #a " == " #b " (0x%lX != 0x%lX)\r\n", (unsigned long)_a, (unsigned long)_b); \
+        }                                            \
+    } while(0)
+
+/**
+ * Assert inequality with value printing on failure.
+ */
+#define ASSERT_NE(a, b)                              \
+    do {                                             \
+        typeof(a) _a = (a);                          \
+        typeof(b) _b = (b);                          \
+        if (_a == _b)                                \
+        {                                            \
+            printf("Assertion failed: " #a " != " #b " (both are 0x%lX)\r\n", (unsigned long)_a); \
+        }                                            \
+    } while(0)
 /*
  * Initializes an RFM9X radio.
  */

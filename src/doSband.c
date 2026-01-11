@@ -81,7 +81,7 @@ static inline uint32_t read_uint32_le(const volatile uint8_t *buf) {
 #define PACKET_SIZE_SBAND 256
 // Payload format placed after 4-byte preamble on the wire.
 // SX1280 strips the 4-byte preamble on receive, so received payload starts at offset 0.
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed)) sband_payload_t {
     uint8_t dest;              // network: destination
     uint8_t src;               // network: source
     uint8_t ack;               // network: ack flag
@@ -408,9 +408,11 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
                 power = (int)rpl.power;
                 uint32_t rx_packet_set_count = rpl.packet_set_count;
                 // Packet enqueued and data extracted successfully - print out the details
-                printf("SBand: RX Packet - len=%u, power=%d dBm, SNR=%d dB, RSSI=%d dBm, set_count=%lu\n",
-                       (unsigned)stored_len, power, (int8_t)rpl.snr, (int8_t)rpl.rssi, rx_packet_set_count);
-                sband_last_rx_packet_set_count = rx_packet_set_count;
+                printf("SBand: RX Packet - len=%u, serial number=%d, power=%d dBm, SNR=%d dB, RSSI=%d dBm, set_count=%lu\n",
+                       rpl.serial, (unsigned)stored_len, power, (int8_t)rpl.snr, (int8_t)rpl.rssi, rx_packet_set_count);
+                // print using helper
+                sband_print_payload(&rpl);
+                       sband_last_rx_packet_set_count = rx_packet_set_count;
                 // Histogram begins recording after both RX and TX have started
                 // to avoid mis-alignment due to late starts
                 if (rx_packet_set_count == 0) {
@@ -519,7 +521,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         }
         // Send payload directly from stack (send exact struct size)
         sband_clear_irq_status(0xFFFF);
-        sband_packet_to_fifo((const uint8_t *)&payload, sizeof(payload));
+        sband_packet_to_fifo((uint8_t *)&payload, sizeof(payload));
         sband_transmit();  // Send the packet; inform the LED
         white();  // Indicate transmitting, forces UHF to re-indicate received packets
         sprintf(buffer_Sband_TX, "Now sending TX Power = %02d\n", current_tx_power_sband);
@@ -567,6 +569,27 @@ void sband_print_histogram(void) {
 
     for (int i = 0; i < 32; i++) {
         printf("%d ", power_histogram_sband[i]);
+    }
+    printf("\n");
+}
+
+// Pretty-print a received or to-be-sent `sband_payload_t` storage block.
+void sband_print_payload(const sband_payload_t *p) {
+    if (!p) {
+        printf("SBand: payload=NULL\n");
+        return;
+    }
+
+    printf("SBand Payload:\n");
+    printf("  dest=%u src=%u ack=%u serial=%u len=%u\n",
+           (unsigned)p->dest, (unsigned)p->src, (unsigned)p->ack, (unsigned)p->serial, (unsigned)p->queue_len);
+    printf("  power=%d dBm, set_count=%lu, SNR=%d dB, RSSI=%d dBm\n",
+           (int)p->power, (unsigned long)p->packet_set_count, (int8_t)p->snr, (int8_t)p->rssi);
+
+    // Print histogram (30 bins)
+    printf("  histogram:");
+    for (int i = 0; i < 30; ++i) {
+        printf(" %u", (unsigned)p->histogram[i]);
     }
     printf("\n");
 }
