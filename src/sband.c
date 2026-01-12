@@ -389,8 +389,8 @@ void sband_set_rf_frequency(uint32_t freq_hz) {
 // Set RF frequency
 // freq_hz: Frequency in Hz (e.g., 2427000000 for 2427 MHz)
 
-    // SX1280 frequency calculation: freq_reg = (freq_hz * 2^18) / 52000000
-    // For 2.4 GHz: freq_reg = freq_hz / 198.3642578125
+// SX1280 frequency calculation: freq_reg = (freq_hz * 2^18) / 52000000
+// For 2.4 GHz: freq_reg = freq_hz / 198.3642578125
 // SPI Exchange.  sband_read_command provides and removes the CMD/status byte
 //       TX: [0x86]   [rfFrequency[23:16]]  [rfFrequency[15:8]] [rfFrequency[7:0]]
 //       RX: [status] [status]              [status]            [status]
