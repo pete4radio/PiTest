@@ -347,6 +347,8 @@ void sband_set_packet_type(sx1280_packet_type_t type) {
 void sband_set_rf_frequency(uint32_t freq_hz) {
     // SX1280 frequency calculation: freq_reg = (freq_hz * 2^18) / 52000000
     // For 2.4 GHz: freq_reg = freq_hz / 198.3642578125
+    // for the SX1280, there is no getter.
+
     uint32_t freq_reg = (uint32_t)((double)freq_hz / 198.3642578125);
 
     uint8_t cmd_data[3];
@@ -359,6 +361,7 @@ void sband_set_rf_frequency(uint32_t freq_hz) {
 
 // Set modulation parameters for LoRa
 void sband_set_modulation_params(uint8_t sf, uint8_t bw, uint8_t cr) {
+    // for the SX1280, there is no getter.
     uint8_t cmd_data[3];
     cmd_data[0] = sf;  // Spreading factor
     cmd_data[1] = bw;  // Bandwidth
@@ -370,6 +373,7 @@ void sband_set_modulation_params(uint8_t sf, uint8_t bw, uint8_t cr) {
 // Set packet parameters
 void sband_set_packet_params(uint8_t preamble_len, uint8_t header_type,
                               uint8_t payload_len, uint8_t crc, uint8_t iq) {
+    // for the SX1280, there is no getter.
     uint8_t cmd_data[7];
     cmd_data[0] = preamble_len;  // Preamble length
     cmd_data[1] = header_type;   // Header type (0x00 = variable, 0x80 = fixed)
@@ -390,6 +394,8 @@ void sband_set_buffer_base_address(uint8_t tx_base, uint8_t rx_base) {
 
     sband_write_command(SX1280_CMD_SET_BUFFER_BASE_ADDRESS, cmd_data, 2);
 
+
+    // for the SX1280, there is no tx_base getter.
     if (sband_get_rx_offset() != rx_base) {
         printf("SBand.c sband_set_buffer_base_address: WARNING: RX base address mismatch: expected %02X, got %02X\n",
                rx_base, sband_get_rx_offset());
@@ -400,6 +406,7 @@ void sband_set_buffer_base_address(uint8_t tx_base, uint8_t rx_base) {
 void sband_set_tx_params(int8_t power, uint8_t ramp_time) {
     // SX1280 power range: -18 to +13 dBm
     // Power byte: 0x00 = -18 dBm, 0x1F = +13 dBm
+    // for the SX1280, there is no getter.
     uint8_t power_byte = (power + 18) & 0x1F;
 
     uint8_t cmd_data[2];
@@ -412,8 +419,17 @@ void sband_set_tx_params(int8_t power, uint8_t ramp_time) {
 // Set DIO IRQ parameters
 void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
                                 uint16_t dio2_mask, uint16_t dio3_mask) {
+
+// SPI exchange (data shown sets RX DIO1 interrupt, TX is 0x0 in the same places)...
+//              ...sband_read_command provides and removes the CMD/status byte
+//                     0             1 
+//       TX: [0x8D]   [unk]          [0x1]          [unk]           [0x1]   
+//       RX: [status][irqMask:15-8] [irq_Mask:7-0]  [dio1Mask:15-8] [dio1Mask:7-0] ...
+
+    // for the SX1280, there is no getter.
+
     uint8_t cmd_data[8];
-    // Try big-endian [MSB, LSB] - commands might use different endianness than responses
+
     // Datasheet is clear that this command and SPI uses MSB first
     cmd_data[0] = (irq_mask >> 8) & 0xFF;
     cmd_data[1] = irq_mask & 0xFF;
@@ -432,6 +448,13 @@ void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
 
 // Get IRQ status
 uint16_t sband_get_irq_status(void) {
+
+// SPI exchange.  sband_read_command provides and removes the CMD/status byte, but here
+// we have to cope with the extra NOP/status pair which gives the chip time to prepare a response):
+//                     0       1                2
+//       TX: [0x15]  [NOP]   [NOP]             [NOP]
+//       RX: [status][status][irq_status:15-8] [irq_status:7-0]
+
     uint8_t status[2];
     sband_read_command(SX1280_CMD_GET_IRQ_STATUS, status, 2);
     // SX1280 datasheet says it returns IRQ status MSB first (big-endian): [MSB, LSB]
@@ -442,6 +465,14 @@ uint16_t sband_get_irq_status(void) {
 
 // Clear IRQ status
 void sband_clear_irq_status(uint16_t mask) {
+    // SPI exchange.  sband_read_command provides and removes the CMD/status byte.
+//                        0             1     
+//       TX: [0x97]      [NOP]          [NOP]
+//       RX: [status]    [irqMask:15-8] [irq_Mask:7-0]
+
+//  There is a getter, but if the IRQ is left on, even an immediate check might
+//  show them as not clear, if a packet came in right after clearing.  So we skip verification.
+
     uint8_t cmd_data[2];
     // SX1280 datasheet expects MSB first for command payloads: [MSB, LSB]
     cmd_data[0] = (mask >> 8) & 0xFF;
@@ -546,32 +577,36 @@ void sband_packet_to_fifo(uint8_t *buf, uint8_t n) {
 // Read packet from FIFO
 // Returns the number of bytes read
 uint8_t sband_packet_from_fifo(uint8_t *buf) {
-    // Get chip's RX buffer info first.  Let's not confuse the chips buffer "status" with
+    // First, Get chip's RX buffer info.  Let's not confuse the chips buffer "status" with
     // the status byte returned by SPI commands, which is discarded in sband_read_command.
-    // SPI exchange: TX: [0x17][NOP][NOP][NOP][NOP]
+    // SPI exchange: TX: [0x17]. [NOP]  [NOP]             [NOP]
     //               RX: [status][status][rxPayloadLength][rxStartBufferPointer]
     uint8_t buffer_info[4];
-    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 4);
-    // buffer_info[0] = first status (discarded by sband_read_command)
-    // buffer_info[1] = second status byte
-    // buffer_info[2] = payload length
-    // buffer_info[3] = RX buffer offset
+    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 3);
+    // first status byte associated with the CMD is discarded by sband_read_command
+    // buffer_info[0] = second status byte
+    // buffer_info[1] = payload length
+    // buffer_info[2] = RX buffer offset
     uint8_t payload_len = buffer_info[1];
     uint8_t rx_offset = buffer_info[2];  // Offset in chip's buffer where payload starts
+//  If using interrupts, comment out this print statement
     printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, rx_offset);
 
     if (payload_len > 0 && payload_len <= 256) {
         // Read the buffer
+        memset(sband_tx_combined, 0x00, payload_len + 3);  // Clear the data.  Need 3 extra dummy bytes (??)
         sband_tx_combined[0] = SX1280_CMD_READ_BUFFER;
         sband_tx_combined[1] = rx_offset;
-        memset(sband_tx_combined + 2, 0x00, payload_len + 5);  // Need 5 extra dummy bytes (??)
+  
+    // SPI exchange: TX: [0x1B]  [offset][NOP]   [NOP]         [NOP]         ...
+    //               RX: [status][status][status][data@offset][data@offset+1]...
 
-        sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 7);
+        sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 3);  // returns the command, offset and first NOP bytes
 
-        // Copy data to output buf
-        memcpy(buf, sband_rx_combined + 6, payload_len - 6);
+        // Copy data to output buf.  Skip the first 3 bytes (cmd, offset, NOP)
+        memcpy(buf, sband_rx_combined + 3, payload_len);
 
-        // Debug: Print first 32 bytes of packet
+        // Debug: Print first 32 bytes of packet.  //  If using interrupts, comment out this block.
         printf("SBand.c: RX Packet data (first 32 bytes): ");
         for (int i = 0; i < (payload_len < 32 ? payload_len : 32); i++) {
             printf("%02X ", buf[i]);
@@ -587,6 +622,13 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
 // Get SNR (in dB)
 int8_t sband_get_snr(void) {
     uint8_t status[5];
+
+// SPI exchange.  sband_read_command provides and removes the 0x1D/status byte, but here
+// we have to cope with the extra NOP/status pair).  This is the rssi at the sync word time
+//                     0       1      2
+//       TX: [0x1D]  [NOP]   [NOP]  [NOP]
+//       RX: [status][status][rssi] [snr]
+
     sband_read_command(SX1280_CMD_GET_PACKET_STATUS, status, 5);
 
     // For LoRa: byte 1 is SNR (signed, in 0.25 dB steps)
@@ -596,6 +638,12 @@ int8_t sband_get_snr(void) {
 
 // Get RSSI (in dBm)
 int16_t sband_get_rssi(void) {
+// SPI exchange.  sband_read_command provides and removes the 0x1D/status byte, but here
+// we have to cope with the extra NOP/status pair).  This is the rssi at the sync word time:
+//                     0       1      2
+//       TX: [0x1D]  [NOP]   [NOP]  [NOP]
+//       RX: [status][status][rssi] [snr]
+
     uint8_t status[5];
     sband_read_command(SX1280_CMD_GET_PACKET_STATUS, status, 5);
 
@@ -608,7 +656,14 @@ int16_t sband_get_rssi(void) {
 // Get current operating mode (reads from chip via CMD_GET_STATUS)
 sx1280_mode_t sband_get_mode(void) {
     uint8_t status;
-    sband_read_command(SX1280_CMD_GET_STATUS, &status, 1);
+    const uint8_t cmd_get_status = SX1280_CMD_GET_STATUS;  // 0xC0
+// SPI exchange.
+//       TX: [0xC0]
+//       RX: [status]
+// Although this is a command, since it returns the chip status, as does avery command, we
+// don't need a NOP byte here (although it would work if status were big enough)
+
+    sband_spi_transfer(&cmd_get_status, &status, 1);
 
     // Extract mode from bits [7:5] (datasheet Table 11-6)
     uint8_t mode_bits = (status >> 5) & 0x07;
@@ -627,13 +682,17 @@ sx1280_mode_t sband_get_mode(void) {
 // Get packet type (reads from chip via CMD_GET_PACKET_TYPE)
 sx1280_packet_type_t sband_get_packet_type(void) {
     uint8_t packet_type;
+// SPI transactions (note extra NOP/status pair) to give chip time to prepare response:
+//  TX: [0x03]  [NOP]   [NOP]
+//  RX: [status][status][packetType]
     sband_read_command(SX1280_CMD_GET_PACKET_TYPE, &packet_type, 1);
     return (sx1280_packet_type_t)packet_type;
 }
 
 // Get RX buffer offset (reads from chip via CMD_GET_RX_BUFFER_STATUS)
-// SPI exchange: TX: [0x17][NOP][NOP][NOP][NOP]
-//               RX: [status][status][rxPayloadLength][rxStartBufferPointer]
+// SPI exchange (note extra NOP/Status pair):
+//       TX: [0x17]  [NOP]   [NOP]            [NOP]
+//       RX: [status][status][rxPayloadLength][rxStartBufferPointer]
 uint8_t sband_get_rx_offset(void) {
     uint8_t buffer_info[4];
     sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 4);
