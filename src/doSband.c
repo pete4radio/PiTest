@@ -412,7 +412,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
                        rpl.serial, (unsigned)stored_len, power, (int8_t)rpl.snr, (int8_t)rpl.rssi, rx_packet_set_count);
                 // print using helper
                 sband_print_payload(&rpl);
-                       sband_last_rx_packet_set_count = rx_packet_set_count;
+                sband_last_rx_packet_set_count = rx_packet_set_count;
                 // Histogram begins recording after both RX and TX have started
                 // to avoid mis-alignment due to late starts
                 if (rx_packet_set_count == 0) {
@@ -575,7 +575,7 @@ void sband_print_histogram(void) {
 
 // Pretty-print a received or to-be-sent `sband_payload_t` storage block.
 void sband_print_payload(const sband_payload_t *p) {
-    if (!p) {
+    if (!p || p->queue_len == 0) {
         printf("SBand: payload=NULL\n");
         return;
     }

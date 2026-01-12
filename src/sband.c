@@ -1,4 +1,5 @@
 #include "sband.h"
+#include "doSband.h"
 #include "hardware/spi.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
@@ -420,10 +421,10 @@ void sband_set_tx_params(int8_t power, uint8_t ramp_time) {
 void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
                                 uint16_t dio2_mask, uint16_t dio3_mask) {
 
-// SPI exchange (data shown sets RX DIO1 interrupt, TX is 0x0 in the same places)...
+// SPI exchange (data shown sets RX DIO1 interrupt, TX is 0x1 in the same places)...
 //              ...sband_read_command provides and removes the CMD/status byte
 //                     0             1 
-//       TX: [0x8D]   [unk]          [0x1]          [unk]           [0x1]   
+//       TX: [0x8D]   [unk]          [0x2]          [unk]           [0x2]   
 //       RX: [status][irqMask:15-8] [irq_Mask:7-0]  [dio1Mask:15-8] [dio1Mask:7-0] ...
 
     // for the SX1280, there is no getter.
@@ -612,6 +613,8 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
             printf("%02X ", buf[i]);
         }
         printf("\n");
+        // print out the whole packet for debug
+        sband_print_payload((const sband_payload_t *)buf);
 
         return payload_len;
     }
