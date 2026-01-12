@@ -400,7 +400,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             // Parse structured payload sent by peer
             int power = 0;
             uint8_t stored_len = packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)];
-            if (stored_len <= (int)sizeof(sband_payload_t)) {
+            if (stored_len <= PACKET_SIZE_SBAND) {
                 sband_payload_t rpl;
                 // Received payload starts at packet_queue_sband[idx][0].  Make a local copy so the
                 // ISR can manage the queue while we process this packet.
