@@ -242,21 +242,32 @@ static void sband_write_register(uint16_t addr, const uint8_t *data, uint8_t len
 }
 
 // Read from register(s) using CMD_READ_REGISTER
-// Protocol: [0x19] [addr_msb] [addr_lsb] [NOP...] → [status] [status] [status] [data0] ...
+// Inputs: addr - 16-bit register address
+//         data - pointer to buffer to store read data
+//         len - number of bytes to read
+// Outputs: data buffer filled with read bytes
+//
+// SPI traffic
+// TX: [0x19]   [addr_msb] [addr_lsb] [NOP]    [NOP]   [NOP] ...
+// RX: [status] [status]   [status]   [status] [data0] [data1] ...
+//
+//  Note that the host has to send a NOP after sending the 2 bytes of address to start 
+//  receiving data bytes on the next NOP sent.
+
 static void sband_read_register(uint16_t addr, uint8_t *data, uint8_t len) {
     sband_tx_combined[0] = SX1280_CMD_READ_REGISTER;
     sband_tx_combined[1] = (addr >> 8) & 0xFF;  // Address MSB
     sband_tx_combined[2] = addr & 0xFF;         // Address LSB
 
     // Fill with NOP (0x00) for dummy bytes
-    memset(sband_tx_combined + 3, 0x00, len);
+    memset(sband_tx_combined + 3, 0x00, len +1);  // +1 for the wait NOP at offset 3
 
-    // Transfer: 3 cmd/addr bytes + len data bytes
-    sband_spi_transfer(sband_tx_combined, sband_rx_combined, len + 3);
+    // Transfer: 3 cmd/addr bytes + wait NOP + len data bytes
+    sband_spi_transfer(sband_tx_combined, sband_rx_combined, len + 4);
 
-    // Data starts at offset 3 (skip cmd + 2-byte address, status bytes embedded in response)
+    // Data starts at offset 4 (skip cmd + 2-byte address, and status bytes embedded in response)
     if (data != NULL && len > 0) {
-        memcpy(data, sband_rx_combined + 3, len);
+        memcpy(data, sband_rx_combined + 4, len);
     }
 }
 
@@ -337,17 +348,53 @@ void sband_set_mode(sx1280_mode_t mode) {
 
 }
 
+// Get current operating mode (reads from chip via CMD_GET_STATUS)
+sx1280_mode_t sband_get_mode(void) {
+    uint8_t status;
+    const uint8_t cmd_get_status = SX1280_CMD_GET_STATUS;  // 0xC0
+// SPI exchange.
+//       TX: [0xC0]
+//       RX: [status]
+// Although this is a command, since it returns the chip status, as does every command, we
+// don't need a NOP byte here (although it would work if status were big enough)
+
+    sband_spi_transfer(&cmd_get_status, &status, 1);
+
+    // Extract mode from bits [7:5] (datasheet Table 11-6)
+    uint8_t mode_bits = (status >> 5) & 0x07;
+
+    // Map hardware status bits to mode enum
+    switch (mode_bits) {
+        case 0b010: return SX1280_MODE_STDBY_RC;
+        case 0b011: return SX1280_MODE_STDBY_XOSC;
+        case 0b100: return SX1280_MODE_FS;
+        case 0b101: return SX1280_MODE_RX;
+        case 0b110: return SX1280_MODE_TX;
+        default:    return SX1280_MODE_SLEEP;
+    }
+}
+
 // Set packet type
 void sband_set_packet_type(sx1280_packet_type_t type) {
+
+// SPI Exchange.  sband_read_command provides and removes the CMD/status byte
+//       TX: [0x8A]   [packet type]
+//       RX: [status] [status]
+
     uint8_t cmd_data[1] = {type};
     sband_write_command(SX1280_CMD_SET_PACKET_TYPE, cmd_data, 1);
 }
 
+void sband_set_rf_frequency(uint32_t freq_hz) {
 // Set RF frequency
 // freq_hz: Frequency in Hz (e.g., 2427000000 for 2427 MHz)
-void sband_set_rf_frequency(uint32_t freq_hz) {
+
     // SX1280 frequency calculation: freq_reg = (freq_hz * 2^18) / 52000000
     // For 2.4 GHz: freq_reg = freq_hz / 198.3642578125
+// SPI Exchange.  sband_read_command provides and removes the CMD/status byte
+//       TX: [0x86]   [rfFrequency[23:16]]  [rfFrequency[15:8]] [rfFrequency[7:0]]
+//       RX: [status] [status]              [status]            [status]
+
     // for the SX1280, there is no getter.
 
     uint32_t freq_reg = (uint32_t)((double)freq_hz / 198.3642578125);
@@ -363,6 +410,11 @@ void sband_set_rf_frequency(uint32_t freq_hz) {
 // Set modulation parameters for LoRa
 void sband_set_modulation_params(uint8_t sf, uint8_t bw, uint8_t cr) {
     // for the SX1280, there is no getter.
+// SPI Exchange.  sband_read_command provides and removes the CMD/status byte
+//       TX: [0x8B]   [spreadingFactor]  [bandwidth]  [codingRate]
+//       RX: [status] [status]           [status]     [status]
+
+
     uint8_t cmd_data[3];
     cmd_data[0] = sf;  // Spreading factor
     cmd_data[1] = bw;  // Bandwidth
@@ -375,6 +427,11 @@ void sband_set_modulation_params(uint8_t sf, uint8_t bw, uint8_t cr) {
 void sband_set_packet_params(uint8_t preamble_len, uint8_t header_type,
                               uint8_t payload_len, uint8_t crc, uint8_t iq) {
     // for the SX1280, there is no getter.
+
+// SPI Exchange.  sband_read_command provides and removes the CMD/status byte
+//       TX: [0x8C]   [preambleLength]  [headerType]  [payloadLength]  [crc]  [iq]    [0x00]  [0x00]
+//       RX: [status] [status]         [status]      [status]         [status][status][status][status]
+
     uint8_t cmd_data[7];
     cmd_data[0] = preamble_len;  // Preamble length
     cmd_data[1] = header_type;   // Header type (0x00 = variable, 0x80 = fixed)
@@ -389,6 +446,10 @@ void sband_set_packet_params(uint8_t preamble_len, uint8_t header_type,
 
 // Set buffer base address (TX and RX base pointers in 256-byte buffer)
 void sband_set_buffer_base_address(uint8_t tx_base, uint8_t rx_base) {
+// SPI Exchange.  sband_read_command provides and removes the CMD/status byte
+//       TX: [0x8F]   [txBaseAddress]  [rxBaseAddress]
+//       RX: [status] [status]         [status]
+
     uint8_t cmd_data[2];
     cmd_data[0] = tx_base;  // TX base address in buffer (typically 0x00)
     cmd_data[1] = rx_base;  // RX base address in buffer (typically 0x00)
@@ -408,11 +469,21 @@ void sband_set_tx_params(int8_t power, uint8_t ramp_time) {
     // SX1280 power range: -18 to +13 dBm
     // Power byte: 0x00 = -18 dBm, 0x1F = +13 dBm
     // for the SX1280, there is no getter.
+
+// SPI Exchange.  sband_read_command provides and removes the CMD/status byte
+//       TX: [0x8E]   [txPower]  [rampTime]
+//       RX: [status] [status]   [status]
+
+//  The output power (Pout) is defined by parameter power.
+//  PoutMax = - 18 dBm (txPower = 0)
+//  PoutMax = 13 dBm (txPower = 31)
+
+
     uint8_t power_byte = (power + 18) & 0x1F;
 
     uint8_t cmd_data[2];
     cmd_data[0] = power_byte;  // TX power
-    cmd_data[1] = ramp_time;   // Ramp time (0x02 = 20us, 0x04 = 40us, etc.)
+    cmd_data[1] = ramp_time;   // Ramp time (0x02 = 20us, 0x04 = 40us, etc.) controls keyclicks
 
     sband_write_command(SX1280_CMD_SET_TX_PARAMS, cmd_data, 2);
 }
@@ -424,8 +495,8 @@ void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
 // SPI exchange (data shown sets RX DIO1 interrupt, TX is 0x1 in the same places)...
 //              ...sband_read_command provides and removes the CMD/status byte
 //                     0             1 
-//       TX: [0x8D]   [unk]          [0x2]          [unk]           [0x2]   
-//       RX: [status][irqMask:15-8] [irq_Mask:7-0]  [dio1Mask:15-8] [dio1Mask:7-0] ...
+//       TX: [0x8D]   [irqMask:15-8] [irq_Mask:7-0]  [dio1Mask:15-8] [dio1Mask:7-0] ...
+//       RX: [status] [status]       [status]        [status]        [status]
 
     // for the SX1280, there is no getter.
 
@@ -459,17 +530,16 @@ uint16_t sband_get_irq_status(void) {
     uint8_t status[2];
     sband_read_command(SX1280_CMD_GET_IRQ_STATUS, status, 2);
     // SX1280 datasheet says it returns IRQ status MSB first (big-endian): [MSB, LSB]
-    //return ((uint16_t)status[0] << 8) | status[1];
-    // SX1280 works with little-endian: [LSB, MSB];
-    return ((uint16_t)status[1] << 8) | status[0];
+    return ((uint16_t)status[0] << 8) | status[1];
 }
 
 // Clear IRQ status
 void sband_clear_irq_status(uint16_t mask) {
     // SPI exchange.  sband_read_command provides and removes the CMD/status byte.
 //                        0             1     
-//       TX: [0x97]      [NOP]          [NOP]
-//       RX: [status]    [irqMask:15-8] [irq_Mask:7-0]
+//       TX: [0x97]      [irqMask:15-8] [irq_Mask:7-0]
+//       RX: [status]    [status]       [status] 
+
 
 //  There is a getter, but if the IRQ is left on, even an immediate check might
 //  show them as not clear, if a packet came in right after clearing.  So we skip verification.
@@ -478,10 +548,6 @@ void sband_clear_irq_status(uint16_t mask) {
     // SX1280 datasheet expects MSB first for command payloads: [MSB, LSB]
     cmd_data[0] = (mask >> 8) & 0xFF;
     cmd_data[1] = mask & 0xFF;
-    // SX1280 works with little-endian: [LSB, MSB]
-    cmd_data[0] = mask & 0xFF;
-    cmd_data[1] = (mask >> 8) & 0xFF;
-
     sband_write_command(SX1280_CMD_CLEAR_IRQ_STATUS, cmd_data, 2);
 }
 
@@ -562,6 +628,12 @@ uint8_t sband_rx_done(void) {
 
 // Write packet to FIFO
 void sband_packet_to_fifo(uint8_t *buf, uint8_t n) {
+// SPI exchange.  sband_read_command provides and removes the CMD/status byte
+//       TX: [0x1A]   [offset]  [data0]   [data1] ...
+//       RX: [status] [status]  [status]  [status] ...
+//
+//  The getter is sband_packet_from fifo()
+
     uint8_t cmd_data[258];
     cmd_data[0] = 0x00;  // Offset in buffer
     memcpy(cmd_data + 1, buf, n);
@@ -580,8 +652,13 @@ void sband_packet_to_fifo(uint8_t *buf, uint8_t n) {
 uint8_t sband_packet_from_fifo(uint8_t *buf) {
     // First, Get chip's RX buffer info.  Let's not confuse the chips buffer "status" with
     // the status byte returned by SPI commands, which is discarded in sband_read_command.
-    // SPI exchange: TX: [0x17]. [NOP]  [NOP]             [NOP]
-    //               RX: [status][status][rxPayloadLength][rxStartBufferPointer]
+    //                             0       1                2 
+    // SPI exchange: TX: [0x17]. [NOP]   [NOP]             [NOP]
+    //               RX: [status][status][rxPayloadLength] [rxStartBufferPointer]
+
+    //  Note that the host has to send a NOP after sending the CMD to start 
+    //  receiving data bytes on the next NOP sent.
+
     uint8_t buffer_info[4];
     sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 3);
     // first status byte associated with the CMD is discarded by sband_read_command
@@ -599,8 +676,10 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
         sband_tx_combined[0] = SX1280_CMD_READ_BUFFER;
         sband_tx_combined[1] = rx_offset;
   
-    // SPI exchange: TX: [0x1B]  [offset][NOP]   [NOP]         [NOP]         ...
-    //               RX: [status][status][status][data@offset][data@offset+1]...
+    // SPI exchange: TX: [0x1B]  [offset]  [NOP]     [NOP]         [NOP]         ...
+    //               RX: [status][status]  [status]  [data@offset][data@offset+1]...
+    //  Note that the host has to send a NOP after sending the offset to start 
+    //  receiving data bytes on the next NOP sent.
 
         sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 3);  // returns the command, offset and first NOP bytes
 
@@ -631,6 +710,8 @@ int8_t sband_get_snr(void) {
 //                     0       1      2
 //       TX: [0x1D]  [NOP]   [NOP]  [NOP]
 //       RX: [status][status][rssi] [snr]
+//  Note that the host has to send a NOP after sending the CMD to start 
+//  receiving data bytes on the next NOP sent.
 
     sband_read_command(SX1280_CMD_GET_PACKET_STATUS, status, 5);
 
@@ -646,6 +727,8 @@ int16_t sband_get_rssi(void) {
 //                     0       1      2
 //       TX: [0x1D]  [NOP]   [NOP]  [NOP]
 //       RX: [status][status][rssi] [snr]
+//  Note that the host has to send a NOP after sending the CMD to start 
+//  receiving data bytes on the next NOP sent.
 
     uint8_t status[5];
     sband_read_command(SX1280_CMD_GET_PACKET_STATUS, status, 5);
@@ -656,38 +739,15 @@ int16_t sband_get_rssi(void) {
     return rssi;
 }
 
-// Get current operating mode (reads from chip via CMD_GET_STATUS)
-sx1280_mode_t sband_get_mode(void) {
-    uint8_t status;
-    const uint8_t cmd_get_status = SX1280_CMD_GET_STATUS;  // 0xC0
-// SPI exchange.
-//       TX: [0xC0]
-//       RX: [status]
-// Although this is a command, since it returns the chip status, as does avery command, we
-// don't need a NOP byte here (although it would work if status were big enough)
-
-    sband_spi_transfer(&cmd_get_status, &status, 1);
-
-    // Extract mode from bits [7:5] (datasheet Table 11-6)
-    uint8_t mode_bits = (status >> 5) & 0x07;
-
-    // Map hardware status bits to mode enum
-    switch (mode_bits) {
-        case 0b010: return SX1280_MODE_STDBY_RC;
-        case 0b011: return SX1280_MODE_STDBY_XOSC;
-        case 0b100: return SX1280_MODE_FS;
-        case 0b101: return SX1280_MODE_RX;
-        case 0b110: return SX1280_MODE_TX;
-        default:    return SX1280_MODE_SLEEP;
-    }
-}
-
 // Get packet type (reads from chip via CMD_GET_PACKET_TYPE)
 sx1280_packet_type_t sband_get_packet_type(void) {
     uint8_t packet_type;
 // SPI transactions (note extra NOP/status pair) to give chip time to prepare response:
 //  TX: [0x03]  [NOP]   [NOP]
 //  RX: [status][status][packetType]
+//  Note that the host has to send a NOP after sending the CMD to 
+//  receive the packetType byte on the next NOP sent.
+
     sband_read_command(SX1280_CMD_GET_PACKET_TYPE, &packet_type, 1);
     return (sx1280_packet_type_t)packet_type;
 }
@@ -698,12 +758,12 @@ sx1280_packet_type_t sband_get_packet_type(void) {
 //       RX: [status][status][rxPayloadLength][rxStartBufferPointer]
 uint8_t sband_get_rx_offset(void) {
     uint8_t buffer_info[4];
-    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 4);
-    // buffer_info[0] = first status byte (discarded by sband_read_command)
-    // buffer_info[1] = second status byte
-    // buffer_info[2] = payload length
-    // buffer_info[3] = RX buffer offset
-    return buffer_info[3];
+    sband_read_command(SX1280_CMD_GET_RX_BUFFER_STATUS, buffer_info, 3);
+    // first status byte (discarded by sband_read_command)
+    // buffer_info[0] = second status byte
+    // buffer_info[1] = payload length
+    // buffer_info[2] = RX buffer offset
+    return buffer_info[2];
 }
 
 // Verify SX1280 chip is present by reading version string
@@ -858,11 +918,16 @@ int sband_init(void) {
     // Send GET_STATUS to verify chip is responsive (requires 2-byte transfer)
     uint8_t cmd_buf[2] = {SX1280_CMD_GET_STATUS, 0x00};
     uint8_t status_buf[2];
-    sband_spi_transfer(cmd_buf, status_buf, 2);
-    printf("SBand: Status after reset: 0x%02X\n", status_buf[1]);
+
+// SPI exchange:
+//       TX: [0xC0]
+//       RX: [status] 
+
+    sband_spi_transfer(cmd_buf, status_buf, 1);
+    printf("SBand: Status after reset: 0x%02X\n", status_buf[0]);
 // Add detailed status printing
-    sband_print_status_byte(status_buf[1], "After reset");
-    if (status_buf[1] == 0x00 || status_buf[1] == 0xFF) {
+    sband_print_status_byte(status_buf[0], "After reset");
+    if (status_buf[0] == 0x00 || status_buf[0] == 0xFF) {
         printf("SBand: ERROR: No status byte from SX1280 after reset\n");
         return -1;
     }
@@ -910,10 +975,11 @@ int sband_init(void) {
     sband_set_tx_params(13, 0x02);  // 13 dBm, ramp 20us
 
 
-    // Note that the SX1280 chip does not support reading back settings to verify them,
-    // so we will assume the commands were successful if no BUSY timeout occurred.
+    // Note that the SX1280 chip does not support reading back settings to verify them for all values,
+    // so for some, we will assume the commands were successful if no BUSY timeout occurred.
 
-    // Configure interrupts
+    // Configure "interrupts":  Without mapping to DIO pins, just set the IRQ masks, 
+    // suitable for polling.  The double bang (!!) converts to boolean 0/1 for printout.
     uint16_t irq_mask = SX1280_IRQ_TX_DONE | SX1280_IRQ_RX_DONE | SX1280_IRQ_CRC_ERROR;
     sband_set_dio_irq_params(irq_mask, irq_mask, 0, 0);
     printf("SBand: DIO IRQ params set: mask=0x%04X (TX_DONE=%d, RX_DONE=%d, CRC_ERR=%d)\n",
