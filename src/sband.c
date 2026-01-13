@@ -529,10 +529,11 @@ uint16_t sband_get_irq_status(void) {
 //       TX: [0x15]  [NOP]   [NOP]             [NOP]
 //       RX: [status][status][irq_status:15-8] [irq_status:7-0]
 
-    uint8_t status[2];
-    sband_read_command(SX1280_CMD_GET_IRQ_STATUS, status, 2);
+    uint8_t status[3];
+    sband_read_command(SX1280_CMD_GET_IRQ_STATUS, status, 3);
+    // status[0] = status byte and time to prepare IRQ status
     // SX1280 datasheet says it returns IRQ status MSB first (big-endian): [MSB, LSB]
-    return ((uint16_t)status[0] << 8) | status[1];
+    return ((uint16_t)status[1] << 8) | status[2];
 }
 
 // Clear IRQ status
@@ -613,6 +614,20 @@ uint8_t sband_tx_done(void) {
     static uint16_t last_irq = 0xFFFF;  // Track changes to reduce spam
     if (irq_status != last_irq) {
         printf("SBand: IRQ status = 0x%04X\n", irq_status);
+        printf("  TX_DONE=%d RX_DONE=%d SYNC_VALID=%d SYNC_ERR=%d\n",
+               !!(irq_status & SX1280_IRQ_TX_DONE),
+               !!(irq_status & SX1280_IRQ_RX_DONE),
+               !!(irq_status & SX1280_IRQ_SYNC_WORD_VALID),
+               !!(irq_status & SX1280_IRQ_SYNC_WORD_ERROR));
+        printf("  HDR_VALID=%d HDR_ERR=%d CRC_ERR=%d TIMEOUT=%d PREAMBLE=%d\n",
+               !!(irq_status & SX1280_IRQ_HEADER_VALID),
+               !!(irq_status & SX1280_IRQ_HEADER_ERROR),
+               !!(irq_status & SX1280_IRQ_CRC_ERROR),
+               !!(irq_status & SX1280_IRQ_RX_TX_TIMEOUT),
+               !!(irq_status & SX1280_IRQ_PREAMBLE_DETECTED));
+        printf("  CAD_DONE=%d CAD_DET=%d\n",
+               !!(irq_status & SX1280_IRQ_CAD_DONE),
+               !!(irq_status & SX1280_IRQ_CAD_DETECTED));
         last_irq = irq_status;
     }
     if (irq_status & SX1280_IRQ_TX_DONE) {

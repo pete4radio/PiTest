@@ -227,7 +227,7 @@ static bool attempt_sband_init(void) {
         int ip = 10000;
         while (!sband_tx_done() && ip--) { sleep_us(10); }
 
-        if (!sband_tx_done()) {
+        if (ip == 0) {
             printf("SBand: Init attempt %d/%d failed: TX validation timeout (short packet)\n",
                    attempt, TRY_INIT);
             continue;  // Try again
@@ -247,7 +247,7 @@ static bool attempt_sband_init(void) {
         ip = 100000;
         while (!sband_tx_done() && ip--) { sleep_us(10); }
 
-        if (!sband_tx_done()) {
+        if (ip == 0) {
             printf("SBand: Init attempt %d/%d failed: TX validation timeout (long packet)\n",
                    attempt, TRY_INIT);
             continue;  // Try again
@@ -535,7 +535,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
                 sband_clear_irq_status(SX1280_IRQ_TX_DONE);
                 break;
             }
-            sleep_us(10);
+            sleep_us(100);
         }
         if (timeout <= 0) {
             irq = sband_get_irq_status();
