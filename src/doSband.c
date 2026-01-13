@@ -299,17 +299,21 @@ void initSband(void) {
  * Handles packet reception and transmission at regular intervals
  */
 void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
+// We want to get something done every time we're called but we don't want
+// to hog the CPU cycles.  Here's the flowchart of the logic:
+//
+// If there is a received packet waiting in the radio, maybe because the interrupt
+//       isn't working, bring it to the queue and return
+// If it's too early, return and let UHF do its thing
+// If the radio hasn't been initialized, try to initialize it and return.
+// If UHF just started transmitting, set up RX irqs and enter RX mode and return
+// If UHF just stopped transmitting, set up TX mode and disable RX irqs and return
+// if UHF is transmitting, process the RX queue into the histogram and return
+// If UHF is not transmitting, send one packet at the current power level and return
+// 
     // Handle UHF_TX state changes FIRST (must happen even if radio not initialized)
     // This allows re-initialization attempts when transitioning to TX mode
     static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
-    static bool first_call = true;
-
-    // Debug: Show state on first call
-    if (first_call) {
-        printf("SBand: doSband() first call - UHF_TX=%d, radio_initialized=%d\n",
-               UHF_TX, radio_initialized);
-        first_call = false;
-    }
 
     if (UHF_TX != prev_UHF_TX) {    // UHF_TX state changed -- We follow.  This is the initialization/switchover code.
         printf("SBand: UHF_TX changed %d->%d, radio_init=%d\n",
@@ -538,7 +542,6 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             sleep_us(100);
         }
         if (timeout <= 0) {
-            irq = sband_get_irq_status();
             printf("SBand: TX timed out waiting for TX_DONE at power %d (irq=0x%04X)\n", current_tx_power_sband, irq);
         }
 
