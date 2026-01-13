@@ -148,12 +148,13 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
     if (irq_flags & SX1280_IRQ_RX_DONE) {
 //        printf("SBand: RX_DONE detected!\n");       //PHM does printf even work from an ISR?
         blue(); // no delay in telling the user the good news - a packet has arrived!
-        last_packet_time_sband = get_absolute_time();  // Turn it off after seen
         // Check if queue has space
         if (queue_count_sband < QUEUE_SIZE_SBAND) {
             uint8_t idx = queue_head_sband;
 
-            // Read packet from FIFO directly into our array slot
+            // Read packet from FIFO directly into our array slot -- even if there is a CRC error on this packet
+            // datasheet page 49: It is important to note that all the received data will be written to the data 
+            // buffer even if the CRC is invalid, permitting user-defined post processing of corrupted data.
             int payload_len = sband_packet_from_fifo((uint8_t*)packet_queue_sband[idx]);
             if (payload_len > 0) {
                 // Store length, SNR and RSSI inside the received buffer so the
