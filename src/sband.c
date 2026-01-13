@@ -357,6 +357,8 @@ sx1280_mode_t sband_get_mode(void) {
 //       RX: [status]
 // Although this is a command, since it returns the chip status, as does every command, we
 // don't need a NOP byte here (although it would work if status were big enough)
+// In init we seem to need 2 bytes.  
+// SBand: Status after reset: 0xFF 40
 
     sband_spi_transfer(&cmd_get_status, &status, 1);
 
@@ -919,15 +921,17 @@ int sband_init(void) {
     uint8_t cmd_buf[2] = {SX1280_CMD_GET_STATUS, 0x00};
     uint8_t status_buf[2];
 
-// SPI exchange:
+// SPI exchange is clear from datasheet:
 //       TX: [0xC0]
 //       RX: [status] 
+// However it seems to need an extra byte to clock out the status
+// SBand: Status after reset: 0xFF 40
 
-    sband_spi_transfer(cmd_buf, status_buf, 1);
-    printf("SBand: Status after reset: 0x%02X\n", status_buf[0]);
+    sband_spi_transfer(cmd_buf, status_buf, 2);
+    printf("SBand: Status after reset: 0x%02X %02X\n", status_buf[0], status_buf[1]);
 // Add detailed status printing
-    sband_print_status_byte(status_buf[0], "After reset");
-    if (status_buf[0] == 0x00 || status_buf[0] == 0xFF) {
+    sband_print_status_byte(status_buf[1], "After reset");
+    if (status_buf[1] == 0x00 || status_buf[1] == 0xFF) {
         printf("SBand: ERROR: No status byte from SX1280 after reset\n");
         return -1;
     }

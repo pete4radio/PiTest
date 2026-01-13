@@ -188,7 +188,7 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
     }
 }
 
-#define TRY_INIT 2  // Maximum initialization attempts
+#define TRY_INIT 52  // Maximum initialization attempts
 
 /*
  * Attempt to initialize SBand radio with retry logic
