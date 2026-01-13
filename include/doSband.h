@@ -9,7 +9,13 @@
 #define SBAND_MIN_POWER 5         // Minimum TX power in dBm
 
 // Initialize SBand radio (includes ISR setup and tx_done test)
-void initSband(void);
+bool sband_poll_for_rx_packet();
+bool attempt_sband_init(void);
+bool sband_begin_rx(char *buffer_Sband_RX);
+bool sband_begin_tx(char *buffer_Sband_TX);
+bool sband_process_queue(char *buffer_Sband_RX);
+bool sband_send_one_packet(char *buffer_Sband_TX);
+extern void sband_print_histogram(void);
 
 // Main SBand operation loop (RX/TX timing)
 void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX);
@@ -24,10 +30,5 @@ void sband_print_histogram(void);
 typedef struct sband_payload_t sband_payload_t;
 void sband_print_payload(const sband_payload_t *p);
 
-// Timestamp of last SBand packet received (for LED logic)
-extern volatile absolute_time_t sband_last_rx_time;
-
-// LED color contribution from SBand (for additive color mixing)
-//extern volatile uint8_t sband_led_r;
-//extern volatile uint8_t sband_led_g;
-//extern volatile uint8_t sband_led_b;
+// Timing variables
+extern const uint32_t interval_Sband;  // Changed from static to extern

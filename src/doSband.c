@@ -117,25 +117,20 @@ static uint32_t sband_last_printed_packet_set_count = 0; // Last count when stat
 static uint32_t sband_rx_packet_set_offset = 0;    // Offset to handle late boot synchronization
 static bool sband_offset_initialized = false;       // Track if offset has been set
 
-// Timing variables
-static absolute_time_t previous_time_Sband_RX;
-static absolute_time_t previous_time_Sband_TX;
-static uint32_t interval_Sband_RX = 1000000;        // 1 second
-static uint32_t interval_Sband_TX = 20*1010*1000;   // 20.2 seconds
-
 // State machine variables for non-blocking TX
 // Note: Sband_Transmitting is controlled by global UHF_TX state (!UHF_TX = Sband RX)
 static int current_tx_power_sband = SBAND_MAX_POWER;  // Start at max power, count down to min
 volatile absolute_time_t sband_last_rx_time = 0;    // Timestamp of last packet (for LED logic)
 static bool radio_initialized = false;              // sband radio initialized flag (true = initialized, false = not initialized)
 
-// (removed) static TX buffer: we now send `payload` directly via sband_packet_to_fifo
-
 // Per-transmit serial number (1-byte), starts at 0 and increments on each TX
 static uint8_t SerNo = 0;
 
 // RX mode selection: Set to 1 for interrupt-driven, 0 for polling
 #define SBAND_RX_USE_INTERRUPTS 0  // Change to 1 to use DIO1 interrupts
+
+// Timing configuration
+const uint32_t interval_Sband = 1000000;  // 1 second between operations
 
 /*
  * DIO1 GPIO Interrupt Service Routine for SBand
@@ -188,14 +183,14 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
     }
 }
 
-#define TRY_INIT 52  // Maximum initialization attempts
+#define TRY_INIT (52)  // Maximum initialization attempts
 
 /*
  * Attempt to initialize SBand radio with retry logic
  * Includes TX validation tests
  * Returns: true if initialization successful, false if all retries exhausted
  */
-static bool attempt_sband_init(void) {
+bool attempt_sband_init(void) {
     yellow();
     for (int attempt = 1; attempt <= TRY_INIT; attempt++) {
         if (attempt > 1) {
@@ -272,44 +267,235 @@ static bool attempt_sband_init(void) {
 }
 
 /*
- * Initialize SBand radio with tx_done test
- * Includes ISR setup and tx_done timing test
+ * Main SBand operation loop
  */
-void initSband(void) {
-    // Attempt initialization with retries
-    radio_initialized = attempt_sband_init();
 
-    if (radio_initialized) {
-        printf("SBand: Radio initialization SUCCESSFUL\n");
-        printf("SBand: DIO1 ISR will be enabled via unified dispatcher in main.c (GPIO %d)\n",
-               SAMWISE_SBAND_D1_PIN);
-    } else {
-        printf("SBand: Radio initialization FAILED - radio will remain disabled\n");
-    }
-
-    // Initialize timing variables regardless of init success
-    // (doSband() checks radio_initialized before using radio)
-    previous_time_Sband_RX = get_absolute_time();   //  Baseline for checking the RX queue
-    previous_time_Sband_TX = get_absolute_time();   //  Baseline for starting TX cycles
-    last_packet_time_sband = get_absolute_time();   //  Baseline for LED green (packet received) blink duration
-}
-
-/*
- * Main SBand operation loop (RX/TX timing)
- * Handles packet reception and transmission at regular intervals
- */
-void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 // We want to get something done every time we're called but we don't want
 // to hog the CPU cycles.  Here's the flowchart of the logic:
 //
 // If there is a received packet waiting in the radio, maybe because the interrupt
 //       isn't working, bring it to the queue and return
 // If it's too early, return and let UHF do its thing
-// If the radio hasn't been initialized, try to initialize it and return.
+// If the radio hasn't been initialized, try to initialize it and return. 
 // If UHF just started transmitting, set up RX irqs and enter RX mode and return
 // If UHF just stopped transmitting, set up TX mode and disable RX irqs and return
 // if UHF is transmitting, process the RX queue into the histogram and return
 // If UHF is not transmitting, send one packet at the current power level and return
+
+void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
+    // called functions return true if they did significant work and we should release the CPU
+
+    static sband_payload_t payload;
+    static absolute_time_t sband_last_time = {0};
+    static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
+
+    if (sband_poll_for_rx_packet()) { return; }  // Check for RX packet if polling mode
+
+    if (absolute_time_diff_us(sband_last_time, get_absolute_time()) < interval_Sband) {
+        return;  // Too often for more processing
+    }
+    sband_last_time = get_absolute_time();
+
+    if (!radio_initialized) {
+        radio_initialized = attempt_sband_init();
+        return;  // Return after initialization attempt
+    }
+
+    //Everything after this is only executed if the radio is initialized
+
+    if (UHF_TX != prev_UHF_TX) {    // Execute sband state change which follows UHF
+        printf("SBand: UHF_TX changed %d->%d, radio_init=%d\n",
+            prev_UHF_TX, UHF_TX, radio_initialized);
+        if (UHF_TX) {  
+            printf("UHF_TX went from false to true: Stop Sband TX, start Sband RX\n");
+            if (sband_begin_rx(buffer_Sband_RX)) { return;}  // Enter RX mode
+           } else {  
+            printf("UHF_TX went from true to false: Stop Sband RX, start Sband TX\n");
+            if (sband_begin_tx(buffer_Sband_TX)) { return; }  // Enter TX mode
+           }
+        prev_UHF_TX = UHF_TX;
+    }
+
+    // UHF is transmitting, so SBand is receiving.  Handle continuing RX processing
+    if (UHF_TX) {
+        if (sband_process_queue(buffer_Sband_RX)) { return; }  // Empty RX queue into histogram
+    } else {  
+        if (sband_send_one_packet(buffer_Sband_TX)) { return; }  // Transmit one packet at current power level
+    }
+printf("SBand: doSband completed\n");   //should never get here
+}   
+
+bool sband_poll_for_rx_packet() {
+//  check for any packets in the radio FIFO.  If the interrupt is working, we are in transmit mode,
+//  or the radio isn't initialized, we shouldn't see any
+
+    if (radio_initialized && UHF_TX && sband_rx_done()) {
+        printf("SBand: RX_DONE detected via polling\n");
+        blue();  // Show packet arrival
+
+        // Check if queue has space
+        if (queue_count_sband < QUEUE_SIZE_SBAND) {
+            uint8_t idx = queue_head_sband;
+
+                // Read packet from FIFO into the array slot
+                int payload_len = sband_packet_from_fifo((uint8_t*)packet_queue_sband[idx]);
+                if (payload_len > 0) {
+                    // Store length, SNR and RSSI inside the packet buffer
+                    packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)] = (uint8_t)payload_len;
+                    int8_t snr = sband_get_snr();
+                    int16_t rssi = sband_get_rssi();
+                    packet_queue_sband[idx][offsetof(sband_payload_t, snr)] = (uint8_t)snr;
+                    packet_queue_sband[idx][offsetof(sband_payload_t, rssi)] = (uint8_t)rssi;
+                }
+                printf("SBand: Packet received, len=%d, SNR=%d, RSSI=%d\n",
+                        packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)],
+                        (int8_t)packet_queue_sband[idx][offsetof(sband_payload_t, snr)],
+                        (int8_t)packet_queue_sband[idx][offsetof(sband_payload_t, rssi)]);
+                
+                // Update queue
+                queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;  // circular buffer
+                queue_count_sband++;
+        }
+
+        // Clear RX_DONE and continue listening
+        sband_clear_irq_status(SX1280_IRQ_RX_DONE);
+        sband_listen();
+        return true;  // Indicate that we handled an RX packet
+    }  // end of RX polling & enqueueing
+    return false;  // No RX packet handled
+}
+
+bool sband_begin_rx(char *buffer_Sband_RX) {
+    (void)buffer_Sband_RX; // unused currently
+    printf("SBand: Transitioning to RX mode driven by UHF transmitting\n");
+        sband_listen();
+        gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
+        return true;
+    }
+
+bool sband_begin_tx(char *buffer_Sband_TX) {
+    (void)buffer_Sband_TX; // unused currently
+    printf("SBand: Transitioning to TX mode driven by UHF stopping transmission\n");
+        gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, false);
+        sband_set_mode(SX1280_MODE_STDBY_RC);
+        current_tx_power_sband = SBAND_MAX_POWER;  // Start at max power
+        return true;
+    }
+
+bool sband_process_queue(char *buffer_Sband_RX) {
+    (void)buffer_Sband_RX; // unused in this implementation
+
+    if (queue_count_sband == 0) {
+        return false;  // No packets to process
+    }   
+
+    // Process all packets in receive queue
+    while (queue_count_sband > 0) {
+        uint8_t idx = queue_tail_sband;
+        blue();
+        // Parse structured payload sent by peer
+        int power = 0;
+        uint8_t stored_len = packet_queue_sband[idx][offsetof(sband_payload_t, queue_len)];
+        if (stored_len <= PACKET_SIZE_SBAND) {
+            sband_payload_t rpl;
+            // Received payload starts at packet_queue_sband[idx][0].  Make a local copy so the
+            // ISR can manage the queue while we process this packet.
+            memcpy(&rpl, (const void*)packet_queue_sband[idx], stored_len);
+            power = (int)rpl.power;
+
+            // Initialize offset on first valid packet
+            if (!sband_offset_initialized) {
+                sband_rx_packet_set_offset = rpl.packet_set_count - sband_packet_set_count;
+                sband_offset_initialized = true;
+                printf("SBand: RX packet set count offset initialized to %u\n",
+                       sband_rx_packet_set_offset);
+            }
+
+            uint32_t adjusted_count = rpl.packet_set_count - sband_rx_packet_set_offset;
+
+            // Update last received packet set count
+            if (adjusted_count > sband_last_rx_packet_set_count) {
+                sband_last_rx_packet_set_count = adjusted_count;
+            }
+
+            // Update power histogram
+            if (power >= -18 && power <= 13) {
+                power_histogram_sband[power + 18]++;
+            }
+        }
+
+        // Update queue
+        queue_tail_sband = (queue_tail_sband + 1) % QUEUE_SIZE_SBAND;  // circular buffer
+        queue_count_sband--;
+    }
+    return true;  // Indicate that we processed the RX queue
+}
+
+bool sband_send_one_packet(char *buffer_Sband_TX) {
+    if (!UHF_TX && radio_initialized) {
+        sband_set_tx_params(current_tx_power_sband, 0x02);  // Set power, ramp 20μs
+
+        // Create packet: packed sband_payload_t
+        sband_payload_t payload;
+        memset(&payload, 0, sizeof(payload));
+        // Network bytes (this is not the preamble that SX1280 adds/removes automatically)
+        payload.dest = 0xFF; // broadcast by default
+        payload.src = 0xDD;  // source id 221
+        payload.ack = 0x00; // no ack requested
+        payload.serial = SerNo++;  // per-packet serial number and increment (wraps naturally at 255->0)
+        payload.power = (int8_t)current_tx_power_sband;
+        payload.packet_set_count = sband_packet_set_count;
+        payload.snr = 0;
+        payload.rssi = 0;
+        // Send our histogram for logging by a monitor receiver (neither the ground station nor the satellite)
+        for (int i = 0; i < 30; i++) {
+            payload.histogram[i] = (uint16_t)power_histogram_sband[i];
+        }
+
+        // Fill padding with sequential values 0x00,0x01,... to reach full payload size
+        for (size_t i = 0; i < sizeof(payload.pad); i++) {
+            payload.pad[i] = (uint8_t)(i & 0xFF);
+        }
+        // Send payload directly from stack (send exact struct size)
+        sband_clear_irq_status(0xFFFF);
+        sband_packet_to_fifo((uint8_t *)&payload, sizeof(payload));
+        sband_transmit();  // Send the packet; inform the LED
+        white();  // Indicate transmitting, forces UHF to re-indicate received packets
+        sprintf(buffer_Sband_TX, "Now sending TX Power = %02d\n", current_tx_power_sband);
+
+        // Wait for TX completion by polling IRQ status directly (clear when seen)
+        int timeout = 100000;
+        uint16_t irq;
+        while (timeout-- > 0) {
+            irq = sband_get_irq_status();
+            if (irq & SX1280_IRQ_TX_DONE) {
+                sband_clear_irq_status(SX1280_IRQ_TX_DONE);
+                break;
+            }
+            sleep_us(100);
+        }
+        if (timeout <= 0) {
+            printf("SBand: TX timed out waiting for TX_DONE at power %d (irq=0x%04X)\n", current_tx_power_sband, irq);
+        }
+
+        // Move to next power level
+        current_tx_power_sband--;
+
+        // Check if transmission cycle is complete - loop continuously until UHF_TX goes true
+        if (current_tx_power_sband < SBAND_MIN_POWER) {
+            sband_packet_set_count++;  // Increment on completing full sweep
+            current_tx_power_sband = SBAND_MAX_POWER;  // Reset to start of cycle and continue
+            // Note: Don't switch to RX mode here - that happens when UHF_TX changes
+        }
+    }
+    // If our "packet received" LED color is stale, switch back to indicating UHF TX only.
+    if (UHF_TX && absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) > 2000000) {
+        red();
+    }
+    return true;  // Indicate that we sent a packet
+}
+
+/* 
 // 
     // Handle UHF_TX state changes FIRST (must happen even if radio not initialized)
     // This allows re-initialization attempts when transitioning to TX mode
@@ -560,6 +746,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
         red();
     }
 }
+*/
 
 // Print SBand power histogram to console (callable from main.c)
 void sband_print_histogram(void) {

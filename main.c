@@ -164,10 +164,6 @@ void core1_entry() {
     printf("Core 1: Initializing UHF radio...\n");
     initUHF();
 
-    // Initialize SBand radio (includes tx_done test)
-    printf("Core 1: Initializing SBand radio...\n");
-    initSband();
-
     // Setup unified GPIO IRQ handler on Core 1 (after both radios initialized)
     // ISRs will now fire on Core 1, naturally blocking doUHF/doSband (no SPI contention)
     printf("Core 1: Setting up GPIO IRQ dispatcher...\n");
@@ -187,7 +183,7 @@ void core1_entry() {
         // RADIO operations: doUHF handles UHF radio RX/TX state machine
         doUHF((char*)buffer_RADIO_RX, (char*)buffer_RADIO_TX);
 
-        // SBand operations: doSband handles SBand radio RX/TX state machine
+        // SBand operations: doSband handles SBand radio RX/TX state machine including init
         doSband((char*)buffer_Sband_RX, (char*)buffer_Sband_TX);
     }
 }
