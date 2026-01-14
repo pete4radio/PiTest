@@ -685,6 +685,13 @@ uint8_t sband_tx_done(void) {
         sleep_us(10);
         if (gpio_get(SAMWISE_SBAND_D1_PIN) != 0) {
             printf("SBand: WARNING: TX_DONE IRQ cleared but DIO1 is still HIGH\n");
+    // measure how much longer it will take
+            uint16_t ip = 10000;
+            while (gpio_get(SAMWISE_SBAND_D1_PIN) != 0 && ip > 0) {
+                sleep_us(1);
+                ip--;
+            }
+            printf("Sband: DIO1 finally went LOW after %d us\n", 10000 - ip);
         }
         return 1;
     }
