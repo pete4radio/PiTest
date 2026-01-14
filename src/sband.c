@@ -72,6 +72,32 @@
 #define SX1280_CMD_GET_PACKET_STATUS         0x1D
 #define SX1280_CMD_GET_RSSI_INST             0x1F
 
+/* In numerical order, for the Logic Analyzer
+0x03    GET_PACKET_TYPE
+0x15    GET_IRQ_STATUS
+0x17    GET_RX_BUFFER_STATUS
+0x18    WRITE_REGISTER
+0x19    READ_REGISTER
+0x1A    WRITE_BUFFER
+0x1B    READ_BUFFER
+0x1D    GET_PACKET_STATUS
+0x1F    GET_RSSI_INST
+0x80    SET_STANDBY
+0x82    SET_RX
+0x83    SET_TX
+0x84    SET_SLEEP
+0x86    SET_RF_FREQUENCY
+0x8A    SET_PACKET_TYPE
+0x8B    SET_MODULATION_PARAMS
+0x8C    SET_PACKET_PARAMS
+0x8D    SET_DIO_IRQ_PARAMS
+0x8E    SET_TX_PARAMS
+0x8F    SET_BUFFER_BASE_ADDRESS
+0x97    CLEAR_IRQ_STATUS
+0xC0    GET_STATUS
+0xC1    SET_FS
+*/
+
 // SX1280 Register addresses (16-bit addresses accessed via CMD_READ_REGISTER/CMD_WRITE_REGISTER)
 #define SX1280_REG_VERSION_STRING           0x01F0  // 16-byte firmware version string
 #define SX1280_REG_LORA_SYNC_WORD_MSB       0x0944  // LoRa sync word MSB
@@ -534,9 +560,10 @@ uint16_t sband_get_irq_status(void) {
 //                     0       1                2
 //       TX: [0x15]  [NOP]   [NOP]             [NOP]
 //       RX: [status][status][irq_status:15-8] [irq_status:7-0]
+const uint8_t cmd_data_len = 3;
 
-    uint8_t status[3];
-    sband_read_command(SX1280_CMD_GET_IRQ_STATUS, status, 3);
+    uint8_t status[cmd_data_len];
+    sband_read_command(SX1280_CMD_GET_IRQ_STATUS, status, cmd_data_len);
     // status[0] = status byte and time to prepare IRQ status
     // SX1280 datasheet says it returns IRQ status MSB first (big-endian): [MSB, LSB]
     return ((uint16_t)status[1] << 8) | status[2];
@@ -552,12 +579,12 @@ void sband_clear_irq_status(uint16_t mask) {
 
 //  There is a getter, but if the IRQ is left on, even an immediate check might
 //  show them as not clear, if a packet came in right after clearing.  So we skip verification.
-
-    uint8_t cmd_data[2];
+const uint8_t cmd_data_len = 2;
+    uint8_t cmd_data[cmd_data_len];
     // SX1280 datasheet expects MSB first for command payloads: [MSB, LSB]
     cmd_data[0] = (mask >> 8) & 0xFF;
     cmd_data[1] = mask & 0xFF;
-    sband_write_command(SX1280_CMD_CLEAR_IRQ_STATUS, cmd_data, 2);
+    sband_write_command(SX1280_CMD_CLEAR_IRQ_STATUS, cmd_data, cmd_data_len);
 }
 
 // Put radio in RX mode (listen)
@@ -593,7 +620,7 @@ void sband_listen(void) {
                __FILE__, __func__, __LINE__);
     }
 
-/*     // Debug: Verify RX mode and DIO1 state
+    // Debug: Verify RX mode and DIO1 state
     sx1280_mode_t mode = sband_get_mode();
     //ASSERT_EQ(mode, SX1280_MODE_RX);
 
@@ -601,6 +628,7 @@ void sband_listen(void) {
     bool dio1_state = gpio_get(SAMWISE_SBAND_D1_PIN);
 // sband_listen is called from an ISR, so avoid printf here
     printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state);
+
 }
 
 // Put radio in TX mode (transmit)
@@ -621,6 +649,8 @@ void sband_transmit(void) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
                __FILE__, __func__, __LINE__);
     }
+    // We want to know when TX is done, so enable TX_DONE interrupt and map to DIO1
+    sband_set_dio_irq_params(SX1280_IRQ_TX_DONE, SX1280_IRQ_TX_DONE, 0, 0);  // zeroes are for DIO2 and DIO3
 }
 
 // Check if TX is done
@@ -629,24 +659,33 @@ uint8_t sband_tx_done(void) {
     static uint16_t last_irq = 0xFFFF;  // Track changes to reduce spam
     if (irq_status != last_irq) {
         printf("SBand: IRQ status = 0x%04X\n", irq_status);
-        printf("  TX_DONE=%d RX_DONE=%d SYNC_VALID=%d SYNC_ERR=%d\n",
+        printf("  TX_DONE=%d RX_DONE=%d SYNC_VALID=%d SYNC_ERR=%d ",
                !!(irq_status & SX1280_IRQ_TX_DONE),
                !!(irq_status & SX1280_IRQ_RX_DONE),
                !!(irq_status & SX1280_IRQ_SYNC_WORD_VALID),
                !!(irq_status & SX1280_IRQ_SYNC_WORD_ERROR));
-        printf("  HDR_VALID=%d HDR_ERR=%d CRC_ERR=%d TIMEOUT=%d PREAMBLE=%d\n",
+        printf("HDR_VALID=%d HDR_ERR=%d CRC_ERR=%d TIMEOUT=%d PREAMBLE=%d ",
                !!(irq_status & SX1280_IRQ_HEADER_VALID),
                !!(irq_status & SX1280_IRQ_HEADER_ERROR),
                !!(irq_status & SX1280_IRQ_CRC_ERROR),
                !!(irq_status & SX1280_IRQ_RX_TX_TIMEOUT),
                !!(irq_status & SX1280_IRQ_PREAMBLE_DETECTED));
-        printf("  CAD_DONE=%d CAD_DET=%d\n",
+        printf("CAD_DONE=%d CAD_DET=%d\n",
                !!(irq_status & SX1280_IRQ_CAD_DONE),
                !!(irq_status & SX1280_IRQ_CAD_DETECTED));
         last_irq = irq_status;
     }
     if (irq_status & SX1280_IRQ_TX_DONE) {
+    // see if DIO1 is high
+        if (gpio_get(SAMWISE_SBAND_D1_PIN) == 0) {
+            printf("SBand: WARNING: TX_DONE IRQ set but DIO1 is LOW\n");
+        }
         sband_clear_irq_status(SX1280_IRQ_TX_DONE);
+    // should be low now.  Logic Analyzer says it takes 7 us to clear after the command.
+        sleep_us(10);
+        if (gpio_get(SAMWISE_SBAND_D1_PIN) != 0) {
+            printf("SBand: WARNING: TX_DONE IRQ cleared but DIO1 is still HIGH\n");
+        }
         return 1;
     }
     return 0;
@@ -714,11 +753,12 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
     //               RX: [status][status]  [status]  [data@offset][data@offset+1]...
     //  Note that the host has to send a NOP after sending the offset to start 
     //  receiving data bytes on the next NOP sent.
+    const uint8_t cmd_data_len = 3;
 
-        sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + 3);  // returns the command, offset and first NOP bytes
+        sband_spi_transfer(sband_tx_combined, sband_rx_combined, payload_len + cmd_data_len);  // returns the command, offset and first NOP bytes
 
         // Copy data to output buf.  Skip the first 3 bytes (cmd, offset, NOP)
-        memcpy(buf, sband_rx_combined + 3, payload_len);
+        memcpy(buf, sband_rx_combined + cmd_data_len, payload_len);
 
         // Debug: Print first 32 bytes of packet.  //  If using interrupts, comment out this block.
         printf("SBand.c: RX Packet data (first 32 bytes): ");
