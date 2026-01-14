@@ -595,10 +595,12 @@ void sband_listen(void) {
 
 /*     // Debug: Verify RX mode and DIO1 state
     sx1280_mode_t mode = sband_get_mode();
+    //ASSERT_EQ(mode, SX1280_MODE_RX);
+
     uint16_t irq = sband_get_irq_status();
     bool dio1_state = gpio_get(SAMWISE_SBAND_D1_PIN);
 // sband_listen is called from an ISR, so avoid printf here
-    printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state); */
+    printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state);
 }
 
 // Put radio in TX mode (transmit)

@@ -307,6 +307,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     if (UHF_TX != prev_UHF_TX) {    // Execute sband state change which follows UHF
         printf("SBand: UHF_TX changed %d->%d, radio_init=%d\n",
             prev_UHF_TX, UHF_TX, radio_initialized);
+        prev_UHF_TX = UHF_TX;
         if (UHF_TX) {  
             printf("UHF_TX went from false to true: Stop Sband TX, start Sband RX\n");
             if (sband_begin_rx(buffer_Sband_RX)) { return;}  // Enter RX mode
@@ -314,7 +315,6 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
             printf("UHF_TX went from true to false: Stop Sband RX, start Sband TX\n");
             if (sband_begin_tx(buffer_Sband_TX)) { return; }  // Enter TX mode
            }
-        prev_UHF_TX = UHF_TX;
     }
 
     // UHF is transmitting, so SBand is receiving.  Handle continuing RX processing
@@ -329,7 +329,7 @@ printf("SBand: doSband completed\n");   //should never get here
 bool sband_poll_for_rx_packet() {
 //  check for any packets in the radio FIFO.  If the interrupt is working, we are in transmit mode,
 //  or the radio isn't initialized, we shouldn't see any
-
+    //printf("SBand: Polling for RX packet: radio_initialized=%d, UHF_TX=%d\n", radio_initialized, UHF_TX);
     if (radio_initialized && UHF_TX && sband_rx_done()) {
         printf("SBand: RX_DONE detected via polling\n");
         blue();  // Show packet arrival
