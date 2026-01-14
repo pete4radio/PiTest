@@ -622,7 +622,7 @@ void sband_listen(void) {
 
     // Debug: Verify RX mode and DIO1 state
     sx1280_mode_t mode = sband_get_mode();
-    //ASSERT_EQ(mode, SX1280_MODE_RX);
+    ASSERT_EQ(mode, SX1280_MODE_RX);
 
     uint16_t irq = sband_get_irq_status();
     bool dio1_state = gpio_get(SAMWISE_SBAND_D1_PIN);
@@ -804,7 +804,7 @@ uint8_t status[cmd_data_len];
 }
 
 // Get RSSI (in dBm)
-int16_t sband_get_rssi(void) {
+int8_t sband_get_rssi(void) {
 // SPI exchange.  sband_read_command provides and removes the 0x1D/status byte, but here
 // we have to cope with the extra NOP/status pair).  This is the rssi at the sync word time:
 //                     0       1      2
@@ -818,7 +818,7 @@ int16_t sband_get_rssi(void) {
     sband_read_command(SX1280_CMD_GET_PACKET_STATUS, status, reply_data_len);
 
     // For LoRa: first byte is RSSI, and RSSI = -value/2 (dBm)
-    int16_t rssi = -(int16_t)status[1] / 2;
+    int8_t rssi = -status[1] / 2;
     return rssi;
 }
 

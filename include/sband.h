@@ -100,7 +100,7 @@ uint8_t sband_rx_done(void);
 void sband_packet_to_fifo(uint8_t *buf, uint8_t n);
 uint8_t sband_packet_from_fifo(uint8_t *buf);
 int8_t sband_get_snr(void);
-int16_t sband_get_rssi(void);
+int8_t sband_get_rssi(void);
 uint16_t sband_get_irq_status(void);
 void sband_clear_irq_status(uint16_t mask);
 

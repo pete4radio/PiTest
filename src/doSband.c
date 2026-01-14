@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stddef.h>
 #include "hardware/gpio.h"
+#include "hardware/sync.h"
 #include "ws2812.h"  // For LED control (red, white)
 #include "main_gps_uart_shared_buffer.h"  // For BUFLEN definition
 
@@ -102,7 +103,7 @@ volatile uint8_t packet_queue_sband[QUEUE_SIZE_SBAND][PACKET_SIZE_SBAND];
 volatile uint8_t queue_head_sband = 0;  // ISR writes here
 volatile uint8_t queue_tail_sband = 0;  // Main loop reads here
 volatile uint8_t queue_count_sband = 0;
-volatile absolute_time_t last_packet_time_sband;  // For LED blue timing
+volatile absolute_time_t sband_last_rx_time;  // For LED blue timing
 
 // Global CRC error counter (similar to UHF)
 volatile uint8_t nCRC_sband = 0;
@@ -148,6 +149,7 @@ void sband_dio1_isr(uint gpio, uint32_t events) {
     if (irq_flags & SX1280_IRQ_RX_DONE) {
 //        printf("SBand: RX_DONE detected!\n");       //PHM does printf even work from an ISR?
         blue(); // no delay in telling the user the good news - a packet has arrived!
+        sband_last_rx_time = get_absolute_time();
         // Check if queue has space
         if (queue_count_sband < QUEUE_SIZE_SBAND) {
             uint8_t idx = queue_head_sband;
@@ -290,7 +292,7 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
     static absolute_time_t sband_last_time = {0};
     static bool prev_UHF_TX = true;  // Start assuming UHF is TX (Sband is RX)
 
-    if (sband_poll_for_rx_packet()) { return; }  // Check for RX packet if polling mode
+    if (sband_poll_for_rx_packet(buffer_Sband_RX)) { return; }  // Check for RX packet if polling mode
 
     if (absolute_time_diff_us(sband_last_time, get_absolute_time()) < interval_Sband) {
         return;  // Too often for more processing
@@ -319,11 +321,11 @@ void doSband(char *buffer_Sband_RX, char *buffer_Sband_TX) {
 
     // UHF is transmitting, so SBand is receiving.  Handle continuing RX processing
     if (UHF_TX) {
-        if (sband_process_queue(buffer_Sband_RX)) { return; }  // Empty RX queue into histogram
+        if (sband_process_queue(buffer_Sband_RX)) { return; }  // Drain RX queue into histogram
     } else {  
         if (sband_send_one_packet(buffer_Sband_TX)) { return; }  // Transmit one packet at current power level
     }
-printf("SBand: doSband completed\n");   //should never get here
+printf("SBand: Empty RX queue\n");
 }   
 
 bool sband_poll_for_rx_packet() {
@@ -333,6 +335,7 @@ bool sband_poll_for_rx_packet() {
     if (radio_initialized && UHF_TX && sband_rx_done()) {
         printf("SBand: RX_DONE detected via polling\n");
         blue();  // Show packet arrival
+        sband_last_rx_time = get_absolute_time();
 
         // Check if queue has space
         if (queue_count_sband < QUEUE_SIZE_SBAND) {
@@ -353,9 +356,11 @@ bool sband_poll_for_rx_packet() {
                         (int8_t)packet_queue_sband[idx][offsetof(sband_payload_t, snr)],
                         (int8_t)packet_queue_sband[idx][offsetof(sband_payload_t, rssi)]);
                 
-                // Update queue
+                // When modifying queue_head_sband and queue_count_sband together from ISR/main, disable DIO1 IRQ briefly:
+                uint32_t save = save_and_disable_interrupts();
                 queue_head_sband = (queue_head_sband + 1) % QUEUE_SIZE_SBAND;  // circular buffer
                 queue_count_sband++;
+                restore_interrupts(save);
         }
 
         // Clear RX_DONE and continue listening
@@ -371,6 +376,7 @@ bool sband_begin_rx(char *buffer_Sband_RX) {
     printf("SBand: Transitioning to RX mode driven by UHF transmitting\n");
         sband_listen();
         gpio_set_irq_enabled(SAMWISE_SBAND_D1_PIN, GPIO_IRQ_EDGE_RISE, true);
+        buffer_Sband_RX[0] = '\0';      //  Clear buffer_Sband_TX to avoid stale messages to user
         return true;
     }
 
@@ -401,7 +407,9 @@ bool sband_process_queue(char *buffer_Sband_RX) {
             sband_payload_t rpl;
             // Received payload starts at packet_queue_sband[idx][0].  Make a local copy so the
             // ISR can manage the queue while we process this packet.
-            memcpy(&rpl, (const void*)packet_queue_sband[idx], stored_len);
+            size_t to_copy = stored_len < sizeof(rpl) ? stored_len : sizeof(rpl);
+            memset(&rpl, 0, sizeof(rpl));
+            memcpy(&rpl, (const void *)packet_queue_sband[idx], to_copy);
             power = (int)rpl.power;
 
             // Initialize offset on first valid packet
@@ -433,7 +441,7 @@ bool sband_process_queue(char *buffer_Sband_RX) {
 }
 
 bool sband_send_one_packet(char *buffer_Sband_TX) {
-    if (!UHF_TX && radio_initialized) {
+    if (!UHF_TX && radio_initialized) {         // this should always be true if we were called
         sband_set_tx_params(current_tx_power_sband, 0x02);  // Set power, ramp 20μs
 
         // Create packet: packed sband_payload_t
@@ -488,12 +496,13 @@ bool sband_send_one_packet(char *buffer_Sband_TX) {
             current_tx_power_sband = SBAND_MAX_POWER;  // Reset to start of cycle and continue
             // Note: Don't switch to RX mode here - that happens when UHF_TX changes
         }
-    }
-    // If our "packet received" LED color is stale, switch back to indicating UHF TX only.
-    if (UHF_TX && absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) > 2000000) {
-        red();
-    }
-    return true;  // Indicate that we sent a packet
+    
+        // If our "packet received" LED color is stale, switch back to indicating UHF TX only.
+        if (UHF_TX && absolute_time_diff_us(sband_last_rx_time, get_absolute_time()) > 2000000) {   red();    }
+        return true;  // Indicate that we sent a packet
+        }
+    printf("Sband: Warning: Not sending packet: UHF_TX=%d, radio_initialized=%d\n", UHF_TX, radio_initialized);
+    return false;  // We sent no packet, took no time
 }
 
 /* 
@@ -543,7 +552,7 @@ bool sband_send_one_packet(char *buffer_Sband_TX) {
         if (sband_rx_done()) {
             printf("SBand: RX_DONE detected via polling\n");
             blue();  // Show packet arrival
-            last_packet_time_sband = get_absolute_time();
+            sband_last_rx_time = get_absolute_time();
 
             // Check if queue has space
             if (queue_count_sband < QUEUE_SIZE_SBAND) {
@@ -600,7 +609,7 @@ bool sband_send_one_packet(char *buffer_Sband_TX) {
                 uint32_t rx_packet_set_count = rpl.packet_set_count;
                 // Packet enqueued and data extracted successfully - print out the details
                 printf("SBand: RX Packet - len=%u, serial number=%d, power=%d dBm, SNR=%d dB, RSSI=%d dBm, set_count=%lu\n",
-                       rpl.serial, (unsigned)stored_len, power, (int8_t)rpl.snr, (int8_t)rpl.rssi, rx_packet_set_count);
+                       (unsigned)stored_len, rpl.serial, power, (int8_t)rpl.snr, (int8_t)rpl.rssi, rx_packet_set_count);
                 // print using helper
                 sband_print_payload(&rpl);
                 sband_last_rx_packet_set_count = rx_packet_set_count;
