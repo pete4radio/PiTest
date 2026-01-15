@@ -303,10 +303,10 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         // Format power with leading zero or minus sign (moved after network bytes)
         sprintf((char*)tx_packet + 8, "TX Power = %02d", current_tx_power_uhf);
         // Add packet set counter at fixed position (bytes 24-27, shifted by 4 bytes)
-        memcpy(tx_packet + 24, &uhf_packet_set_count, 4);
+        memcpy(tx_packet + 32, &uhf_packet_set_count, 4);
 
         // Copy current RX display buffer into packet after the counter
-        size_t offset = 28;  // After preamble (4) + network (4) + power string (14) + counter (4)
+        size_t offset = 36;  // After preamble (4) + network (4) + power string (14) + counter (4)
         size_t copy_len = strlen(buffer_RADIO_RX);
         if (copy_len > (size_t)(250 - offset)) copy_len = 250 - offset;
         if (copy_len > 0) {

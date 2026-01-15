@@ -398,15 +398,49 @@ bool sband_process_queue(char *buffer_Sband_RX) {
             memcpy(&rpl, (const void *)packet_queue_sband[idx], to_copy);
             power = (int)rpl.power;
 
+            sband_last_rx_packet_set_count = rpl.packet_set_count;
             // Initialize offset on first valid packet
             if (!sband_offset_initialized) {
                 sband_rx_packet_set_offset = rpl.packet_set_count - sband_packet_set_count;
                 sband_offset_initialized = true;
                 printf("SBand: RX packet set count offset initialized to %u\n",
                        sband_rx_packet_set_offset);
-            }
-// Pico2's sdk is little endian. This was stored with little endian.
-            uint32_t adjusted_count = rpl.packet_set_count - sband_rx_packet_set_offset;
+
+                sband_last_rx_packet_set_count = rpl.packet_set_count;
+                // Histogram begins recording after both RX and TX have started
+                // to avoid mis-alignment due to late starts
+                if (rpl.packet_set_count == 0) {
+                    // The distant Transmitter rebooted - reset our histogram and offset
+                    for (int i = 0; i < 32; i++) {
+                        power_histogram_sband[i] = 0;
+                    }
+                    sband_rx_packet_set_offset = 0;
+                    sband_offset_initialized = false;
+                    printf("SBand: RX packet set count reset to 0, histogram cleared\n");
+                } else if (!sband_offset_initialized) {
+                    // First packet received with count > 0 - save offset
+                    sband_rx_packet_set_offset = rpl.packet_set_count;
+                    sband_offset_initialized = true;
+                    printf("SBand: RX packet set count offset initialized to %u\n",
+                       sband_rx_packet_set_offset);
+                    }
+                }   
+                // SBand receives from another identical SBand radio (same band)
+                int hist_index = power + 18;  // Map SBand min power to index 0
+                if (hist_index >= 0 && hist_index < 32) {
+                    // NOTE: This increment happens on Core1 while Core0 may read
+                    // the histogram for realtime display. At rare moments when the
+                    // higher byte of the counter wraps and the increment carries
+                    // into that higher byte, the displayed histogram value may
+                    // briefly be off by 256. This is acceptable for a realtime
+                    // display and avoids locking overhead in the hot path.
+                    power_histogram_sband[hist_index]++;
+                } else {
+                    printf("SBand Warning: Received out-of-range power value: %d (expected SBand range %d-%d)\n",
+                        power, SBAND_MIN_POWER, SBAND_MAX_POWER);
+                }
+            // Pico2's sdk is little endian. This was stored with little endian.
+            uint32_t adjusted_count = sband_last_rx_packet_set_count - sband_rx_packet_set_offset;
 
             // Update last received packet set count
             if (adjusted_count > sband_last_rx_packet_set_count) {
@@ -433,11 +467,8 @@ bool sband_process_queue(char *buffer_Sband_RX) {
             printf("Power(dBm) | Expected | Received | Lost | Loss%%\n");
             printf("-----------|----------|----------|------|--------\n");
 
-            for (int i = 0; i < 32; i++) {
-                int power_dbm = SBAND_MIN_POWER + i;  // SBand receives from another SBand
-
-                // Only show power levels in SBand's TX sweep range
-                if (power_dbm < SBAND_MIN_POWER || power_dbm > SBAND_MAX_POWER) continue;
+            for (int i = SBAND_MIN_POWER + 18; i <= SBAND_MAX_POWER + 18; i++) {
+                int power_dbm = i - 18;  // SBand receives from another SBand
 
                 // Calculate expected based on offset-corrected count
                 uint32_t expected = sband_last_rx_packet_set_count - sband_rx_packet_set_offset;
@@ -513,7 +544,6 @@ bool sband_send_one_packet(char *buffer_Sband_TX) {
         if (current_tx_power_sband < SBAND_MIN_POWER) {
             sband_packet_set_count++;  // Increment on completing full sweep
             current_tx_power_sband = SBAND_MAX_POWER;  // Reset to start of cycle and continue
-            // Note: Don't switch to RX mode here - that happens when UHF_TX changes
         }
     
         // If our "packet received" LED color is stale, switch back to indicating UHF TX only.

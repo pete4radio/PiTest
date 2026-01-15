@@ -645,7 +645,7 @@ void sband_listen(void) {
     uint16_t irq = sband_get_irq_status();
     bool dio1_state = gpio_get(SAMWISE_SBAND_D1_PIN);
 // sband_listen is called from an ISR, so avoid printf here
-    printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state);
+    //printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state);
 // Toggle RXEN for logic analyzer visibility
     gpio_put(sband_rxen_pin, 0);
     sleep_us(10);
