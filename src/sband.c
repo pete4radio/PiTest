@@ -1,5 +1,6 @@
 #include "sband.h"
 #include "doSband.h"
+#include "pins.h"
 #include "hardware/spi.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
@@ -176,15 +177,17 @@ static bool sband_still_busy_after_wait(void) {
 
     while (gpio_get(sband_d0_pin)) {  // While BUSY is HIGH
         if ((time_us_64() - start_time) >= BUSY_TIMEOUT_US) {
+            uint64_t elapsed = time_us_64() - start_time;
             sband_busy_timeout_count++;
-            printf("SBand: BUSY timeout after %llu us\n",
-                   (time_us_64() - start_time));
+            printf("SBand: BUSY timeout after %llu us\n", elapsed);
             radio_initialized = false;  // Mark radio as uninitialized on BUSY timeout
             return true;  // Still busy (timeout)
         }
         sleep_us(1);  // Small delay to prevent busy-waiting
     }
 
+    uint64_t elapsed = time_us_64() - start_time;
+    //printf("SBand: busy_check end pin=%d elapsed=%llu us\n", gpio_get(sband_d0_pin), elapsed);
     return false;  // BUSY is now LOW (success)
 }
 
@@ -594,7 +597,9 @@ void sband_listen(void) {
 
     // Update the antenna relay, PA and LNA (I think that is actually what this is, 
     // but can't confirm without hardware docs).  This is handy on the
-    // logic analyzer.
+    // logic analyzer as it trigger just when the RX parameters are set
+    // and just after that the parameters are checked.  So all that traffic can
+    // be seen clearly.
     gpio_put(sband_txen_pin, 0);  // Disable TX path
     gpio_put(sband_rxen_pin, 1);  // Enable RX path
     const uint8_t cmd_data_len = 3;
@@ -608,18 +613,31 @@ void sband_listen(void) {
     sband_set_dio_irq_params(SX1280_IRQ_RX_DONE | SX1280_IRQ_CRC_ERROR, \
                             SX1280_IRQ_RX_DONE | SX1280_IRQ_CRC_ERROR,\
                             0, 0);  // zeroes are for DIO2 and DIO3
+// Toggle RXEN for logic analyzer visibility
+    gpio_put(sband_rxen_pin, 0);
+    sleep_us(10);
+    gpio_put(sband_rxen_pin, 1);
 
 // Enable interrupts for rising transitions on DIO1 pin.
     gpio_set_irq_enabled(sband_d0_pin, GPIO_IRQ_EDGE_RISE, true);
-
+// Toggle RXEN for logic analyzer visibility
+    gpio_put(sband_rxen_pin, 0);
+    sleep_us(10);
+    gpio_put(sband_rxen_pin, 1);
     sband_write_command(SX1280_CMD_SET_RX, cmd_data, cmd_data_len);
-
+// Toggle RXEN for logic analyzer visibility
+    gpio_put(sband_rxen_pin, 0);
+    sleep_us(10);
+    gpio_put(sband_rxen_pin, 1);
 // sband_listen is called from an ISR, so avoid printf here
     if (sband_still_busy_after_wait()) {
         printf("[File: %s, Function: %s, Line: %d] WARNING: Returning from set mode despite BUSY timeout\n",
                __FILE__, __func__, __LINE__);
     }
-
+// Toggle RXEN for logic analyzer visibility
+    gpio_put(sband_rxen_pin, 0);
+    sleep_us(10);
+    gpio_put(sband_rxen_pin, 1);
     // Debug: Verify RX mode and DIO1 state
     sx1280_mode_t mode = sband_get_mode();
     ASSERT_EQ(mode, SX1280_MODE_RX);
@@ -628,7 +646,10 @@ void sband_listen(void) {
     bool dio1_state = gpio_get(SAMWISE_SBAND_D1_PIN);
 // sband_listen is called from an ISR, so avoid printf here
     printf("SBand: Entered RX mode=%d, IRQ=0x%04X (after clear), DIO1=%d\n", mode, irq, dio1_state);
-
+// Toggle RXEN for logic analyzer visibility
+    gpio_put(sband_rxen_pin, 0);
+    sleep_us(10);
+    gpio_put(sband_rxen_pin, 1);
 }
 
 // Put radio in TX mode (transmit)
