@@ -433,10 +433,43 @@ bool sband_process_queue(char *buffer_Sband_RX) {
             }
         }
 
-        // Update queue
+        // Update queue.  First, disable interrupts briefly to avoid races
+        uint32_t save = save_and_disable_interrupts();
         queue_tail_sband = (queue_tail_sband + 1) % QUEUE_SIZE_SBAND;  // circular buffer
         queue_count_sband--;
+        restore_interrupts(save);
     }
+
+// Calculate and display packet loss statistics (only when count changes)
+        if ((sband_last_rx_packet_set_count > 0 &&
+            sband_last_rx_packet_set_count != sband_last_printed_packet_set_count)) {
+            printf("\n=== SBand Packet Loss Statistics (Set #%lu) ===\n", sband_last_rx_packet_set_count);
+            printf("Power(dBm) | Expected | Received | Lost | Loss%%\n");
+            printf("-----------|----------|----------|------|--------\n");
+
+            for (int i = 0; i < 32; i++) {
+                int power_dbm = SBAND_MIN_POWER + i;  // SBand receives from another SBand
+
+                // Only show power levels in SBand's TX sweep range
+                if (power_dbm < SBAND_MIN_POWER || power_dbm > SBAND_MAX_POWER) continue;
+
+                // Calculate expected based on offset-corrected count
+                uint32_t expected = sband_last_rx_packet_set_count - sband_rx_packet_set_offset;
+                uint32_t received = power_histogram_sband[i];
+                uint32_t lost = (received > expected) ? 0 : (expected - received);
+                float loss_fraction = (float)lost / (float)expected;
+                float loss_percent = loss_fraction * 100.0f;
+
+                printf("%10d | %8lu | %8d | %4lu | %5.1f%%\n",
+                       power_dbm, expected, received, lost, loss_percent);
+            }
+            printf("====================================================\n\n");
+
+            // Update last printed count
+            sband_last_printed_packet_set_count = sband_last_rx_packet_set_count;
+        } // End of packet loss statistics display
+
+
     return true;  // Indicate that we processed the RX queue
 }
 
