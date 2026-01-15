@@ -9,19 +9,6 @@
 // RFM96 register definitions (from rfm96.c)
 #define _RH_RF95_REG_12_IRQ_FLAGS 0x12
 
-// Serialize/deserialize uint32_t (little-endian)
-static inline void write_uint32_le(uint8_t *buf, uint32_t value) {
-    buf[0] = (uint8_t)(value & 0xFF);
-    buf[1] = (uint8_t)((value >> 8) & 0xFF);
-    buf[2] = (uint8_t)((value >> 16) & 0xFF);
-    buf[3] = (uint8_t)((value >> 24) & 0xFF);
-}
-
-static inline uint32_t read_uint32_le(const volatile uint8_t *buf) {
-    return ((uint32_t)buf[0]) | (((uint32_t)buf[1]) << 8) |
-           (((uint32_t)buf[2]) << 16) | (((uint32_t)buf[3]) << 24);
-}
-
 // Packet queue structure definitions (for ISR access)
 #define QUEUE_SIZE 15
 #define PACKET_SIZE 256
@@ -213,7 +200,8 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
             if (sscanf((char*)pkt->data + 8, "TX Power = %d", &power) == 1) {
                 // Extract packet set counter from bytes 24-27 (after network bytes and power string)
                 if (pkt->length >= 28) {
-                    uint32_t rx_packet_set_count = read_uint32_le(pkt->data + 24);
+                    uint32_t rx_packet_set_count;
+                    memcpy(&rx_packet_set_count, (const void *)(pkt->data + 24), 4);  // destination, source
                     uhf_last_rx_packet_set_count = rx_packet_set_count;
 
                     // Handle synchronization
@@ -315,7 +303,7 @@ void doUHF(char *buffer_RADIO_RX, char *buffer_RADIO_TX) {
         // Format power with leading zero or minus sign (moved after network bytes)
         sprintf((char*)tx_packet + 8, "TX Power = %02d", current_tx_power_uhf);
         // Add packet set counter at fixed position (bytes 24-27, shifted by 4 bytes)
-        write_uint32_le(tx_packet + 24, uhf_packet_set_count);
+        memcpy(tx_packet + 24, &uhf_packet_set_count, 4);
 
         // Copy current RX display buffer into packet after the counter
         size_t offset = 28;  // After preamble (4) + network (4) + power string (14) + counter (4)
