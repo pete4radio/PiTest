@@ -66,15 +66,23 @@ End review.
 
 // Serialize/deserialize uint32_t (little-endian -- pico-sdk, intel, etc's native)
 static inline void write_uint32_le(uint8_t *buf, uint32_t value) {
+// pico-sdk is little-endian natively, so copy input to output
+    memcpy (value, buf, 4);
+/* Use this to swap endian ness on other platforms
     buf[0] = (uint8_t)(value & 0xFF);
     buf[1] = (uint8_t)((value >> 8) & 0xFF);
     buf[2] = (uint8_t)((value >> 16) & 0xFF);
     buf[3] = (uint8_t)((value >> 24) & 0xFF);
-}
+    */
+    }
 
 static inline uint32_t read_uint32_le(const volatile uint8_t *buf) {
+// pico-sdk is little-endian natively, so copy input to output
+    return *(uint32_t *)buf;
+/* Use this to swap endian ness on other platforms
     return ((uint32_t)buf[0]) | (((uint32_t)buf[1]) << 8) |
            (((uint32_t)buf[2]) << 16) | (((uint32_t)buf[3]) << 24);
+    */
 }
 
 // Packet queue structure definitions (for ISR access)
@@ -419,7 +427,7 @@ bool sband_process_queue(char *buffer_Sband_RX) {
                 printf("SBand: RX packet set count offset initialized to %u\n",
                        sband_rx_packet_set_offset);
             }
-
+// Pico2's sdk is little endian. This was stored with little endian.
             uint32_t adjusted_count = rpl.packet_set_count - sband_rx_packet_set_offset;
 
             // Update last received packet set count
