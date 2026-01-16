@@ -550,9 +550,10 @@ void sband_set_dio_irq_params(uint16_t irq_mask, uint16_t dio1_mask,
     cmd_data[7] = dio3_mask & 0xFF;
 
     sband_write_command(SX1280_CMD_SET_DIO_IRQ_PARAMS, cmd_data, cmd_data_len);
-    printf("SBand: SET_DIO_IRQ_PARAMS: [%02X %02X] [%02X %02X] [%02X %02X] [%02X %02X]\n",
+    /*printf("SBand: SET_DIO_IRQ_PARAMS: [%02X %02X] [%02X %02X] [%02X %02X] [%02X %02X]\n",
            cmd_data[0], cmd_data[1], cmd_data[2], cmd_data[3],
            cmd_data[4], cmd_data[5], cmd_data[6], cmd_data[7]);
+    */
 }
 
 // Get IRQ status
@@ -769,7 +770,7 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
     uint8_t payload_len = buffer_info[1];
     uint8_t rx_offset = buffer_info[2];  // Offset in chip's buffer where payload starts
 //  If using interrupts, comment out this print statement
-    printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, rx_offset);
+//    printf("SBand: RX buffer status - len=%d, offset=%d\n", payload_len, rx_offset);
 
     if (payload_len > 0 && payload_len <= 255) {
         // Read the buffer
@@ -787,7 +788,7 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
 
         // Copy data to output buf.  Skip the first 3 bytes (cmd, offset, NOP)
         memcpy(buf, sband_rx_combined + cmd_data_len, payload_len);
-
+/*
         // Debug: Print first 32 bytes of packet.  //  If using interrupts, comment out this block.
         printf("SBand.c: RX Packet data (first 32 bytes): ");
         for (int i = 0; i < (payload_len < 32 ? payload_len : 32); i++) {
@@ -796,7 +797,7 @@ uint8_t sband_packet_from_fifo(uint8_t *buf) {
         printf("\n");
         // print out the whole packet for debug
         sband_print_payload((const sband_payload_t *)buf);
-
+*/
         return payload_len;
     }
 
